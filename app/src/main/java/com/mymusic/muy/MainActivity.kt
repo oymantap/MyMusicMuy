@@ -19,10 +19,30 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnPlayPause: ImageButton
     private lateinit var miniTitle: TextView
 
+    private val guiReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                "UPDATE_GUI" -> {
+                    val isPlaying = intent.getBooleanExtra("isPlaying", false)
+                    val title = intent.getStringExtra("title")
+                    btnPlayPause.setImageResource(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
+                    title?.let { 
+                        miniTitle.text = it
+                        miniPlayer.visibility = View.VISIBLE
+                    }
+                }
+                "FINISH_APP" -> finish()
+            }
+        }
+    }
+
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             musicService = (service as MusicService.MusicBinder).getService()
             isBound = true
+            // Cek folder terakhir kalo service baru nyambung
+            val prefs = getSharedPreferences("MusicPrefs", MODE_PRIVATE)
+            prefs.getString("last_folder", null)?.let { loadSongs(Uri.parse(it)) }
         }
         override fun onServiceDisconnected(p0: ComponentName?) { isBound = false }
     }
@@ -31,10 +51,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Izin Notif Android 13+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+        val filter = IntentFilter().apply {
+            addAction("UPDATE_GUI")
+            addAction("FINISH_APP")
         }
+        registerReceiver(guiReceiver, filter)
 
         val intent = Intent(this, MusicService::class.java)
         startService(intent)
@@ -43,16 +64,14 @@ class MainActivity : AppCompatActivity() {
         miniPlayer = findViewById(R.id.miniPlayer)
         btnPlayPause = findViewById(R.id.btnPlayPause)
         miniTitle = findViewById(R.id.miniTitle)
+        miniTitle.isSelected = true // Biar teks jalan (Marquee)
+        
         rv = findViewById(R.id.recyclerViewMusic)
         rv.layoutManager = LinearLayoutManager(this)
 
         btnPlayPause.setOnClickListener {
-            val isPlaying = musicService?.togglePlay() ?: false
-            btnPlayPause.setImageResource(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
+            musicService?.togglePlay()
         }
-
-        val prefs = getSharedPreferences("MusicPrefs", MODE_PRIVATE)
-        prefs.getString("last_folder", null)?.let { loadSongs(Uri.parse(it)) }
 
         findViewById<Button>(R.id.btnPickFolder).setOnClickListener {
             startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), 100)
@@ -73,32 +92,36 @@ class MainActivity : AppCompatActivity() {
     private fun loadSongs(uri: Uri) {
         val root = DocumentFile.fromTreeUri(this, uri)
         val list = mutableListOf<Triple<String, String, Uri>>()
-        val formats = listOf("mp3", "flac", "wav", "m4a", "ogg", "aac")
+        val formats = listOf("mp3", "flac", "wav", "m4a", "ogg", "aac", "opus")
         val mmr = MediaMetadataRetriever()
 
         root?.listFiles()?.forEach { file ->
-            if (formats.contains(file.name?.substringAfterLast('.')?.lowercase())) {
+            val fileName = file.name?.lowercase() ?: ""
+            if (formats.any { fileName.endsWith(".$it") }) {
                 try {
                     mmr.setDataSource(this, file.uri)
                     val t = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: file.name ?: "Unknown"
                     val a = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: "Unknown Artist"
                     list.add(Triple(t, a, file.uri))
-                } catch (e: Exception) { list.add(Triple(file.name!!, "Unknown Artist", file.uri)) }
+                } catch (e: Exception) { 
+                    list.add(Triple(file.name ?: "Unknown", "Unknown Artist", file.uri)) 
+                }
             }
         }
         mmr.release()
 
-        rv.adapter = SongAdapter(this, list) { title, artist, songUri ->
-            musicService?.playMusic(songUri, title)
-            miniPlayer.visibility = View.VISIBLE
-            miniTitle.text = title
-            miniTitle.isSelected = true
-            btnPlayPause.setImageResource(android.R.drawable.ic_media_pause)
+        // Kirim list ke Service buat antrean
+        musicService?.setList(list)
+
+        rv.adapter = SongAdapter(this, list) { _, _, songUri ->
+            val index = list.indexOfFirst { it.third == songUri }
+            musicService?.playMusic(index)
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         if (isBound) unbindService(connection)
+        unregisterReceiver(guiReceiver)
     }
 }
