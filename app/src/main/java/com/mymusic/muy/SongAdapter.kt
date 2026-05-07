@@ -1,8 +1,15 @@
 package com.mymusic.muy
 
-import android.view.*
+import android.content.Context
+import android.media.MediaMetadataRetriever
+import android.net.Uri
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 
 class SongAdapter(
     private val context: Context,
@@ -17,7 +24,6 @@ class SongAdapter(
     }
 
     override fun onCreateViewHolder(p: ViewGroup, t: Int): SongVH {
-        // Pake layout custom item_song yang udah kita buat
         val v = LayoutInflater.from(p.context).inflate(R.layout.item_song, p, false)
         return SongVH(v)
     }
@@ -26,24 +32,18 @@ class SongAdapter(
         val (title, artist, uri) = songs[p]
         h.title.text = title
         h.artist.text = artist
-        
-        // RAHASIA TEKS JALAN (MARQUEE)
         h.title.isSelected = true 
-        h.title.requestFocus()
 
-        // Ambil Cover Art asli dari file pake Glide
         try {
             val retriever = MediaMetadataRetriever()
             retriever.setDataSource(context, uri)
             val art = retriever.embeddedPicture
-            if (art != null) {
-                Glide.with(context).load(art).into(h.img)
-            } else {
-                h.img.setImageResource(R.drawable.default_cover) // Sediakan icon default
-            }
+            Glide.with(context)
+                .load(art ?: android.R.drawable.ic_media_play) // Pake icon default android dulu
+                .into(h.img)
             retriever.release()
         } catch (e: Exception) {
-            h.img.setImageResource(R.drawable.default_cover)
+            h.img.setImageResource(android.R.drawable.ic_media_play)
         }
 
         h.itemView.setOnClickListener { onClick(title, artist, uri) }
