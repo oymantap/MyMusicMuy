@@ -24,10 +24,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode: Int, resultCode: Int, data) // Baris ini yang tadi error
+        // PERBAIKAN: Di sini tidak boleh ada ": Int" atau ": Intent?"
+        super.onActivityResult(requestCode, resultCode, data)
         
         if (requestCode == PICK_FOLDER_REQUEST_CODE && resultCode == RESULT_OK) {
-            val treeUri: Uri? = data?.data
+            val treeUri = data?.data
             if (treeUri != null) {
                 contentResolver.takePersistableUriPermission(
                     treeUri,
@@ -43,20 +44,17 @@ class MainActivity : AppCompatActivity() {
         val songNames = mutableListOf<String>()
 
         rootFolder?.listFiles()?.forEach { file ->
-            if (file.isFile && isAudio(file.name ?: "")) {
-                songNames.add(file.name ?: "Unknown")
+            val name = file.name ?: ""
+            if (file.isFile && (name.endsWith(".mp3") || name.endsWith(".wav") || name.endsWith(".flac"))) {
+                songNames.add(name)
             }
         }
 
         if (songNames.isEmpty()) {
-            Toast.makeText(this, "Ga ada lagu, Manis!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Folder kosongnya, Manis!", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(this, "Ketemu ${songNames.size} lagu!", Toast.LENGTH_SHORT).show()
         }
     }
-
-    private fun isAudio(name: String): Boolean {
-        val ext = listOf(".mp3", ".wav", ".flac", ".m4a")
-        return ext.any { name.lowercase().endsWith(it) }
-    }
 }
+
