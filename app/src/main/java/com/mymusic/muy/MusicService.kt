@@ -23,15 +23,17 @@ class MusicService : Service() {
     }
 
     fun playMusic(uri: Uri, title: String) {
+    if (mediaPlayer != null) {
         mediaPlayer?.stop()
         mediaPlayer?.reset()
-        mediaPlayer = MediaPlayer().apply {
-            setDataSource(applicationContext, uri)
-            prepare()
-            start()
-        }
-        showNotification(title)
     }
+    mediaPlayer = MediaPlayer().apply {
+        setDataSource(applicationContext, uri)
+        prepare()
+        start()
+    }
+    showNotification(title)
+}
 
     private fun showNotification(title: String) {
         val channelId = "music_muy"

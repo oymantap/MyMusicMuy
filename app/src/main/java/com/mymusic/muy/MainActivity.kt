@@ -11,13 +11,33 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
+// ... (Import sama kayak sebelumnya)
+
 class MainActivity : AppCompatActivity() {
     private lateinit var rv: RecyclerView
     private var musicService: MusicService? = null
+    private var isBound = false
+
+    // KONEKSI KE SERVICE (WAJIB ADA)
+    private val connection = object : android.content.ServiceConnection {
+        override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {
+            val binder = service as MusicService.MusicBinder
+            musicService = binder.getService()
+            isBound = true
+        }
+        override fun onServiceDisconnected(name: android.content.ComponentName?) {
+            isBound = false
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // START & BIND SERVICE BIAR GA MATI
+        val intent = Intent(this, MusicService::class.java)
+        startService(intent)
+        bindService(intent, connection, Context.BIND_AUTO_CREATE)
 
         rv = findViewById(R.id.recyclerViewMusic)
         rv.layoutManager = LinearLayoutManager(this)
@@ -27,19 +47,7 @@ class MainActivity : AppCompatActivity() {
         if (lastUri != null) loadSongs(Uri.parse(lastUri))
 
         findViewById<Button>(R.id.btnPickFolder).setOnClickListener {
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-            startActivityForResult(intent, 100)
-        }
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (resultCode == RESULT_OK) {
-            data?.data?.let { uri ->
-                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE).edit().putString("last_folder", uri.toString()).apply()
-                loadSongs(uri)
-            }
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), 100)
         }
     }
 
@@ -63,8 +71,15 @@ class MainActivity : AppCompatActivity() {
             }
         }
         retriever.release()
+
+        // SEKARANG BAGIAN KLIKNYA DIISI BIAR BUNYI
         rv.adapter = SongAdapter(this, list) { title, artist, songUri ->
-            // Logic play ke service
+            musicService?.playMusic(songUri, title) // INI YANG BIKIN LAGU JALAN
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (isBound) unbindService(connection)
     }
 }
