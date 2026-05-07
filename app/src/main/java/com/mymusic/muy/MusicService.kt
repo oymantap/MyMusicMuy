@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Binder
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+// Hapus import media.app yang bikin error tadi
 
 class MusicService : Service() {
     private var mediaPlayer: MediaPlayer? = null
