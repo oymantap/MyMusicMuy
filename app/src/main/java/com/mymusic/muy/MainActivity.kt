@@ -1,8 +1,12 @@
 package com.mymusic.muy
 
-import android.content.*
-import android.net.Uri
-import android.os.*
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.net.Uri  // INI WAJIB ADA
+import android.os.Bundle
+import android.os.IBinder
 import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
@@ -51,11 +55,16 @@ class MainActivity : AppCompatActivity() {
     private fun loadSongs(uri: Uri) {
         val root = DocumentFile.fromTreeUri(this, uri)
         val songs = mutableListOf<Pair<String, Uri>>()
-        root?.listFiles()?.filter { it.name?.endsWith(".mp3") == true || it.name?.endsWith(".wav") == true }
+        root?.listFiles()?.filter { it.name?.lowercase()?.endsWith(".mp3") == true || it.name?.lowercase()?.endsWith(".wav") == true }
             ?.forEach { songs.add(it.name!! to it.uri) }
 
         rv.adapter = SongAdapter(songs) { title, songUri ->
             musicService?.playMusic(songUri, title)
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (isBound) unbindService(connection)
     }
 }
