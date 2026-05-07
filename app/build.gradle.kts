@@ -39,13 +39,20 @@ android {
 }
 
 dependencies {
+    // UI Dasar
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.navigation.fragment.ktx)
-    implementation(libs.androidx.navigation.ui.ktx)
     implementation(libs.material)
+
+    // Library Penting buat Scan Folder & Media Player (WAJIB ADA)
+    implementation("androidx.documentfile:documentfile:1.0.1")
+    implementation("androidx.media:media:1.7.0")
+
+    // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
+    
+    // NOTE: Library Navigation udah gue hapus karena lu udah hapus nav_graph.xml
 }
