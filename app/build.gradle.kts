@@ -46,8 +46,9 @@ dependencies {
     implementation(libs.material)
 
     // Library Penting buat Scan Folder & Media Player (WAJIB ADA)
-    implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("androidx.media:media:1.7.0")
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+    implementation("androidx.documentfile:documentfile:1.0.1")
 
     // Testing
     testImplementation(libs.junit)
