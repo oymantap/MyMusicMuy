@@ -2,7 +2,7 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/glass_bg_color"
+    android:background="#000000"
     android:padding="16dp">
 
     <TextView
@@ -10,7 +10,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="MyMusicMuy"
-        android:textColor="@color/neon_green"
+        android:textColor="#1ED760"
         android:textSize="28sp"
         android:textStyle="bold" />
 
@@ -22,7 +22,7 @@
         android:layout_marginTop="24dp"
         android:layout_above="@+id/btnPickFolder"
         android:layout_marginBottom="16dp"
-        android:background="@drawable/bg_glass_card" <--- TERAPKAN EFEK KACA
+        android:background="@drawable/bg_glass_card"
         android:padding="8dp">
 
         <androidx.recyclerview.widget.RecyclerView
@@ -37,8 +37,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:backgroundTint="@color/neon_green"
+        android:backgroundTint="#1ED760"
         android:text="Pilih Folder Musik"
-        android:textColor="@color/text_white" />
+        android:textColor="#FFFFFF" />
 
 </RelativeLayout>
