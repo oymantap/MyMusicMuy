@@ -1,15 +1,11 @@
 package com.mymusic.muy
 
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
-import android.content.ServiceConnection
+import android.content.*
 import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.os.Bundle
-import android.os.IBinder
-import android.widget.Button
-import android.widget.Toast
+import android.os.*
+import android.view.View
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -19,57 +15,56 @@ class MainActivity : AppCompatActivity() {
     private lateinit var rv: RecyclerView
     private var musicService: MusicService? = null
     private var isBound = false
+    private lateinit var miniPlayer: LinearLayout
+    private lateinit var btnPlayPause: ImageButton
+    private lateinit var miniTitle: TextView
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            val binder = service as MusicService.MusicBinder
-            musicService = binder.getService()
+            musicService = (service as MusicService.MusicBinder).getService()
             isBound = true
         }
-        override fun onServiceDisconnected(name: ComponentName?) {
-            isBound = false
-        }
+        override fun onServiceDisconnected(p0: ComponentName?) { isBound = false }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Bind Service
+        // Izin Notif Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+        }
+
         val intent = Intent(this, MusicService::class.java)
         startService(intent)
-        bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        bindService(intent, connection, BIND_AUTO_CREATE)
 
+        miniPlayer = findViewById(R.id.miniPlayer)
+        btnPlayPause = findViewById(R.id.btnPlayPause)
+        miniTitle = findViewById(R.id.miniTitle)
         rv = findViewById(R.id.recyclerViewMusic)
         rv.layoutManager = LinearLayoutManager(this)
 
-        // Load folder terakhir kalau ada
-        val prefs = getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE)
-        val lastUri = prefs.getString("last_folder", null)
-        if (lastUri != null) {
-            loadSongs(Uri.parse(lastUri))
+        btnPlayPause.setOnClickListener {
+            val isPlaying = musicService?.togglePlay() ?: false
+            btnPlayPause.setImageResource(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
         }
 
+        val prefs = getSharedPreferences("MusicPrefs", MODE_PRIVATE)
+        prefs.getString("last_folder", null)?.let { loadSongs(Uri.parse(it)) }
+
         findViewById<Button>(R.id.btnPickFolder).setOnClickListener {
-            val treeIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-            startActivityForResult(treeIntent, 100)
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), 100)
         }
     }
 
-    // INI YANG TADI LU LUPA ATAU KETINGGALAN, MAKANYA GAK KETARIK
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 100 && resultCode == RESULT_OK) {
+        if (resultCode == RESULT_OK && requestCode == 100) {
             data?.data?.let { uri ->
-                // Kasih izin akses folder secara permanen
-                contentResolver.takePersistableUriPermission(uri, 
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                
-                // Simpan di memori biar gak ilang pas buka-tutup
-                getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE)
-                    .edit().putString("last_folder", uri.toString()).apply()
-                
-                // JALANKAN SCAN LAGU
+                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                getSharedPreferences("MusicPrefs", MODE_PRIVATE).edit().putString("last_folder", uri.toString()).apply()
                 loadSongs(uri)
             }
         }
@@ -78,42 +73,27 @@ class MainActivity : AppCompatActivity() {
     private fun loadSongs(uri: Uri) {
         val root = DocumentFile.fromTreeUri(this, uri)
         val list = mutableListOf<Triple<String, String, Uri>>()
-        val formats = listOf("mp3", "flac", "wav", "m4a", "ogg", "aac", "opus")
-        val retriever = MediaMetadataRetriever()
+        val formats = listOf("mp3", "flac", "wav", "m4a", "ogg", "aac")
+        val mmr = MediaMetadataRetriever()
 
-        // Pastikan root ada isinya
-        val files = root?.listFiles()
-        if (files.isNullOrEmpty()) {
-            Toast.makeText(this, "Folder kosong atau gak kebaca Manis!", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        files.forEach { file ->
-            val ext = file.name?.substringAfterLast('.', "")?.lowercase()
-            if (file.isFile && formats.contains(ext)) {
+        root?.listFiles()?.forEach { file ->
+            if (formats.contains(file.name?.substringAfterLast('.')?.lowercase())) {
                 try {
-                    retriever.setDataSource(this, file.uri)
-                    val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: file.name ?: "Unknown"
-                    val artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: "Unknown Artist"
-                    list.add(Triple(title, artist, file.uri))
-                } catch (e: Exception) {
-                    list.add(Triple(file.name ?: "Unknown", "Unknown Artist", file.uri))
-                }
+                    mmr.setDataSource(this, file.uri)
+                    val t = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: file.name ?: "Unknown"
+                    val a = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: "Unknown Artist"
+                    list.add(Triple(t, a, file.uri))
+                } catch (e: Exception) { list.add(Triple(file.name!!, "Unknown Artist", file.uri)) }
             }
         }
-        retriever.release()
+        mmr.release()
 
-        if (list.isEmpty()) {
-            Toast.makeText(this, "Gak nemu file musik di folder ini Syg!", Toast.LENGTH_SHORT).show()
-        }
-
-        // Set ke adapter
         rv.adapter = SongAdapter(this, list) { title, artist, songUri ->
-            if (isBound) {
-                musicService?.playMusic(songUri, title)
-            } else {
-                Toast.makeText(this, "Sabar syg, service lagi nyambung...", Toast.LENGTH_SHORT).show()
-            }
+            musicService?.playMusic(songUri, title)
+            miniPlayer.visibility = View.VISIBLE
+            miniTitle.text = title
+            miniTitle.isSelected = true
+            btnPlayPause.setImageResource(android.R.drawable.ic_media_pause)
         }
     }
 
