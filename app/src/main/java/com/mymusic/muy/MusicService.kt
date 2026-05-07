@@ -3,11 +3,10 @@ package com.mymusic.muy
 import android.app.*
 import android.content.Intent
 import android.media.MediaPlayer
-import android.net.Uri
+import android.net.Uri // INI WAJIB ADA
 import android.os.Binder
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-// Hapus import media.app yang bikin error tadi
 
 class MusicService : Service() {
     private var mediaPlayer: MediaPlayer? = null
@@ -29,19 +28,19 @@ class MusicService : Service() {
 
     private fun showNotification(title: String) {
         val channelId = "music_channel"
-        val manager = getSystemService(NotificationManager::class.java)
+        val manager = getSystemService(NotificationManager::class.java) as NotificationManager
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             manager.createNotificationChannel(NotificationChannel(channelId, "Music", NotificationManager.IMPORTANCE_LOW))
         }
 
         val notification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle("Playing Now")
+            .setContentTitle("MyMusicMuy")
             .setContentText(title)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setOngoing(true)
-            .setStyle(androidx.media.app.NotificationCompat.MediaStyle())
             .build()
 
         startForeground(1, notification)
     }
 }
+
