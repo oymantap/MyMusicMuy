@@ -49,7 +49,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (songNames.isEmpty()) {
-            Toast.makeText(this, "Ga ada lagu, Rycl!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Ga ada lagu, Manis!", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(this, "Ketemu ${songNames.size} lagu!", Toast.LENGTH_SHORT).show()
         }
