@@ -1,37 +1,46 @@
 package com.mymusic.muy
 
-import android.content.Intent
+import android.content.*
 import android.net.Uri
-import android.os.Bundle
+import android.os.*
 import android.widget.Button
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
 class MainActivity : AppCompatActivity() {
+    private var musicService: MusicService? = null
+    private var isBound = false
+    private lateinit var rv: RecyclerView
 
-    private val PICK_FOLDER = 100
-    private lateinit var recyclerView: RecyclerView
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            musicService = (service as MusicService.MusicBinder).getService()
+            isBound = true
+        }
+        override fun onServiceDisconnected(name: ComponentName?) { isBound = false }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        recyclerView = findViewById(R.id.recyclerViewMusic)
-        recyclerView.layoutManager = LinearLayoutManager(this)
+        val intent = Intent(this, MusicService::class.java)
+        bindService(intent, connection, BIND_AUTO_CREATE)
+
+        rv = findViewById(R.id.recyclerViewMusic)
+        rv.layoutManager = LinearLayoutManager(this)
 
         findViewById<Button>(R.id.btnPickFolder).setOnClickListener {
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-            startActivityForResult(intent, PICK_FOLDER)
+            val pickIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+            startActivityForResult(pickIntent, 100)
         }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        
-        if (requestCode == PICK_FOLDER && resultCode == RESULT_OK) {
+        if (resultCode == RESULT_OK) {
             data?.data?.let { uri ->
                 contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 loadSongs(uri)
@@ -41,20 +50,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadSongs(uri: Uri) {
         val root = DocumentFile.fromTreeUri(this, uri)
-        val list = mutableListOf<String>()
-        val formats = listOf(".mp3", ".wav", ".flac", ".m4a", ".ogg", ".aac", ".opus")
+        val songs = mutableListOf<Pair<String, Uri>>()
+        root?.listFiles()?.filter { it.name?.endsWith(".mp3") == true || it.name?.endsWith(".wav") == true }
+            ?.forEach { songs.add(it.name!! to it.uri) }
 
-        root?.listFiles()?.forEach { file ->
-            val name = file.name?.lowercase() ?: ""
-            if (file.isFile && formats.any { name.endsWith(it) }) {
-                list.add(file.name!!)
-            }
+        rv.adapter = SongAdapter(songs) { title, songUri ->
+            musicService?.playMusic(songUri, title)
         }
-
-        if (list.isEmpty()) {
-            Toast.makeText(this, "Ga ada musiknya, Sayang!", Toast.LENGTH_SHORT).show()
-        }
-        
-        recyclerView.adapter = SongAdapter(list)
     }
 }
