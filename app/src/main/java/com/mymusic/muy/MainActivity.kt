@@ -1,31 +1,32 @@
 package com.mymusic.muy
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Bundle
+import android.os.IBinder
 import android.widget.Button
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-
-// ... (Import sama kayak sebelumnya)
 
 class MainActivity : AppCompatActivity() {
     private lateinit var rv: RecyclerView
     private var musicService: MusicService? = null
     private var isBound = false
 
-    // KONEKSI KE SERVICE (WAJIB ADA)
-    private val connection = object : android.content.ServiceConnection {
-        override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as MusicService.MusicBinder
             musicService = binder.getService()
             isBound = true
         }
-        override fun onServiceDisconnected(name: android.content.ComponentName?) {
+        override fun onServiceDisconnected(name: ComponentName?) {
             isBound = false
         }
     }
@@ -34,7 +35,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // START & BIND SERVICE BIAR GA MATI
+        // Bind Service
         val intent = Intent(this, MusicService::class.java)
         startService(intent)
         bindService(intent, connection, Context.BIND_AUTO_CREATE)
@@ -42,12 +43,35 @@ class MainActivity : AppCompatActivity() {
         rv = findViewById(R.id.recyclerViewMusic)
         rv.layoutManager = LinearLayoutManager(this)
 
+        // Load folder terakhir kalau ada
         val prefs = getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE)
         val lastUri = prefs.getString("last_folder", null)
-        if (lastUri != null) loadSongs(Uri.parse(lastUri))
+        if (lastUri != null) {
+            loadSongs(Uri.parse(lastUri))
+        }
 
         findViewById<Button>(R.id.btnPickFolder).setOnClickListener {
-            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), 100)
+            val treeIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+            startActivityForResult(treeIntent, 100)
+        }
+    }
+
+    // INI YANG TADI LU LUPA ATAU KETINGGALAN, MAKANYA GAK KETARIK
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 100 && resultCode == RESULT_OK) {
+            data?.data?.let { uri ->
+                // Kasih izin akses folder secara permanen
+                contentResolver.takePersistableUriPermission(uri, 
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                
+                // Simpan di memori biar gak ilang pas buka-tutup
+                getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE)
+                    .edit().putString("last_folder", uri.toString()).apply()
+                
+                // JALANKAN SCAN LAGU
+                loadSongs(uri)
+            }
         }
     }
 
@@ -57,7 +81,14 @@ class MainActivity : AppCompatActivity() {
         val formats = listOf("mp3", "flac", "wav", "m4a", "ogg", "aac", "opus")
         val retriever = MediaMetadataRetriever()
 
-        root?.listFiles()?.forEach { file ->
+        // Pastikan root ada isinya
+        val files = root?.listFiles()
+        if (files.isNullOrEmpty()) {
+            Toast.makeText(this, "Folder kosong atau gak kebaca Manis!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        files.forEach { file ->
             val ext = file.name?.substringAfterLast('.', "")?.lowercase()
             if (file.isFile && formats.contains(ext)) {
                 try {
@@ -72,9 +103,17 @@ class MainActivity : AppCompatActivity() {
         }
         retriever.release()
 
-        // SEKARANG BAGIAN KLIKNYA DIISI BIAR BUNYI
+        if (list.isEmpty()) {
+            Toast.makeText(this, "Gak nemu file musik di folder ini Syg!", Toast.LENGTH_SHORT).show()
+        }
+
+        // Set ke adapter
         rv.adapter = SongAdapter(this, list) { title, artist, songUri ->
-            musicService?.playMusic(songUri, title) // INI YANG BIKIN LAGU JALAN
+            if (isBound) {
+                musicService?.playMusic(songUri, title)
+            } else {
+                Toast.makeText(this, "Sabar syg, service lagi nyambung...", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
