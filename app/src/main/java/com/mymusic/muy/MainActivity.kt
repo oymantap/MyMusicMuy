@@ -1,70 +1,72 @@
 package com.mymusic.muy
 
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.ServiceConnection
-import android.net.Uri  // INI WAJIB ADA
+import android.net.Uri
 import android.os.Bundle
-import android.os.IBinder
-import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
 class MainActivity : AppCompatActivity() {
-    private var musicService: MusicService? = null
-    private var isBound = false
     private lateinit var rv: RecyclerView
-
-    private val connection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            musicService = (service as MusicService.MusicBinder).getService()
-            isBound = true
-        }
-        override fun onServiceDisconnected(name: ComponentName?) { isBound = false }
-    }
+    private var musicService: MusicService? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val intent = Intent(this, MusicService::class.java)
-        bindService(intent, connection, BIND_AUTO_CREATE)
-
         rv = findViewById(R.id.recyclerViewMusic)
         rv.layoutManager = LinearLayoutManager(this)
 
-        findViewById<Button>(R.id.btnPickFolder).setOnClickListener {
-            val pickIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-            startActivityForResult(pickIntent, 100)
+        // Cek apakah ada folder yang pernah dipilih sebelumnya
+        val prefs = getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE)
+        val lastUri = prefs.getString("last_folder", null)
+        if (lastUri != null) loadSongs(Uri.parse(lastUri))
+
+        // Button Pick Folder harus tetep ada buat ganti folder
+        findViewById<android.widget.Button>(R.id.btnPickFolder).setOnClickListener {
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), 100)
         }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (resultCode == RESULT_OK) {
-            data?.data?.let { uri ->
-                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                loadSongs(uri)
+        data?.data?.let { uri ->
+            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE).edit().putString("last_folder", uri.toString()).apply()
+            loadSongs(uri)
+        }
+    }
+
+private fun loadSongs(uri: Uri) {
+    val root = DocumentFile.fromTreeUri(this, uri)
+    val list = mutableListOf<Triple<String, String, Uri>>()
+    val supportedFormats = listOf("mp3", "flac", "wav", "m4a", "ogg", "aac", "opus")
+    
+    // Pake Retriever buat ambil judul asli & artis asli dari file
+    val retriever = MediaMetadataRetriever()
+
+    root?.listFiles()?.forEach { file ->
+        val ext = file.name?.substringAfterLast('.', "")?.lowercase()
+        if (file.isFile && supportedFormats.contains(ext)) {
+            try {
+                retriever.setDataSource(this, file.uri)
+                val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: file.name ?: "Unknown"
+                val artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: "Unknown Artist"
+                list.add(Triple(title, artist, file.uri))
+            } catch (e: Exception) {
+                // Fallback kalau file korup/metadata kosong
+                list.add(Triple(file.name ?: "Unknown", "Unknown Artist", file.uri))
             }
         }
     }
+    retriever.release()
 
-    private fun loadSongs(uri: Uri) {
-        val root = DocumentFile.fromTreeUri(this, uri)
-        val songs = mutableListOf<Pair<String, Uri>>()
-        root?.listFiles()?.filter { it.name?.lowercase()?.endsWith(".mp3") == true || it.name?.lowercase()?.endsWith(".wav") == true }
-            ?.forEach { songs.add(it.name!! to it.uri) }
-
-        rv.adapter = SongAdapter(songs) { title, songUri ->
-            musicService?.playMusic(songUri, title)
-        }
+    // Update Adapter dengan data yang jauh lebih lengkap
+    rv.adapter = SongAdapter(this, list) { title, artist, songUri ->
+        musicService?.playMusic(songUri, title) // Langsung kirim judul ke notif
     }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        if (isBound) unbindService(connection)
-    }
+  }
 }
