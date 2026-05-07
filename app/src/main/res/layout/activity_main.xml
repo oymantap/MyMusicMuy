@@ -2,7 +2,7 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000"
+    android:background="@android:color/transparent"
     android:padding="16dp">
 
     <TextView
@@ -10,34 +10,27 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="MyMusicMuy"
-        android:textColor="#1ED760"
+        android:textColor="#1DB954"
         android:textSize="28sp"
         android:textStyle="bold" />
 
-    <FrameLayout
-        android:id="@+id/musicListContainer"
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewMusic"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/appTitle"
-        android:layout_marginTop="24dp"
         android:layout_above="@+id/btnPickFolder"
-        android:layout_marginBottom="16dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginBottom="20dp"
         android:background="@drawable/bg_glass_card"
-        android:padding="8dp">
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recyclerViewMusic"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-            
-    </FrameLayout>
+        android:padding="8dp" />
 
     <Button
         android:id="@+id/btnPickFolder"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:backgroundTint="#1ED760"
+        android:backgroundTint="#1DB954"
         android:text="Pilih Folder Musik"
         android:textColor="#FFFFFF" />
 
