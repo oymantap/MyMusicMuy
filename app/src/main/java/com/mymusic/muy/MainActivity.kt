@@ -30,21 +30,32 @@ class MainActivity : AppCompatActivity() {
     private lateinit var miniTitle: TextView
     private lateinit var miniCover: ImageView
     private lateinit var loadingAnim: ProgressBar
+    
+    // VARIABEL BARU UNTUK SEEKBAR & TIMER
+    private lateinit var seekBar: SeekBar
+    private lateinit var tvCurrentTime: TextView
+    private lateinit var tvTotalTime: TextView
+    private val handler = Handler(Looper.getMainLooper())
 
     private val guiReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == "UPDATE_GUI") {
-                val isPlaying = intent.getBooleanExtra("isPlaying", false)
-                val title = intent.getStringExtra("title")
-                val uriStr = intent.getStringExtra("uri")
-                
-                btnPlayPause.setImageResource(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
-                miniTitle.text = title ?: "Unknown"
-                miniPlayer.visibility = View.VISIBLE
-                uriStr?.let { updateMiniCover(Uri.parse(it)) }
-            } else if (intent?.action == "FINISH_APP") {
-                miniPlayer.visibility = View.GONE
-                finish()
+            when (intent?.action) {
+                "UPDATE_GUI" -> {
+                    val isPlaying = intent.getBooleanExtra("isPlaying", false)
+                    val title = intent.getStringExtra("title")
+                    val uriStr = intent.getStringExtra("uri")
+                    
+                    btnPlayPause.setImageResource(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
+                    miniTitle.text = title ?: "Unknown"
+                    miniPlayer.visibility = View.VISIBLE
+                    uriStr?.let { updateMiniCover(Uri.parse(it)) }
+                }
+                "HIDE_MINI_PLAYER" -> {
+                    miniPlayer.visibility = View.GONE
+                }
+                "FINISH_APP" -> {
+                    finish()
+                }
             }
         }
     }
@@ -63,7 +74,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // REQUEST PERMISSION NOTIFIKASI (BIAR NOTIF KAGA MATI SURI)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
@@ -76,33 +86,77 @@ class MainActivity : AppCompatActivity() {
         btnPlayPause = findViewById(R.id.btnPlayPause)
         btnCloseMini = findViewById(R.id.btnCloseMini)
         miniTitle = findViewById(R.id.miniTitle)
-        miniTitle.isSelected = true
         
+        // INIT VIEW SEEKBAR & TIMER
+        seekBar = findViewById(R.id.seekBar)
+        tvCurrentTime = findViewById(R.id.tvCurrentTime)
+        tvTotalTime = findViewById(R.id.tvTotalTime)
+        
+        miniTitle.isSelected = true
         rv = findViewById(R.id.recyclerViewMusic)
         rv.layoutManager = LinearLayoutManager(this)
 
-        registerReceiver(guiReceiver, IntentFilter().apply {
+        val filter = IntentFilter().apply {
             addAction("UPDATE_GUI")
+            addAction("HIDE_MINI_PLAYER")
             addAction("FINISH_APP")
-        })
+        }
+        registerReceiver(guiReceiver, filter)
 
         val intent = Intent(this, MusicService::class.java)
         startService(intent)
         bindService(intent, connection, BIND_AUTO_CREATE)
 
         btnPlayPause.setOnClickListener { musicService?.togglePlay() }
+        
+        // FIX: Klik X matikan lagu & tutup bar, tapi APP TIDAK CLOSE
         btnCloseMini.setOnClickListener {
             val stopIntent = Intent(this, MusicService::class.java).apply { action = MusicService.ACTION_STOP }
             startService(stopIntent)
-            miniPlayer.visibility = View.GONE
+            // miniPlayer.visibility = View.GONE -> sudah dihandle di guiReceiver "HIDE_MINI_PLAYER"
         }
+
+        // Handle Geser SeekBar
+        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) {
+                if (fromUser) musicService?.seekTo(p)
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
 
         findViewById<Button>(R.id.btnPickFolder).setOnClickListener {
             val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or 
-                      Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
             startActivityForResult(i, 100)
         }
+
+        startSeekBarUpdate()
+    }
+
+    // UPDATE PROGRESS SETIAP DETIK
+    private fun startSeekBarUpdate() {
+        handler.post(object : Runnable {
+            override fun run() {
+                musicService?.let {
+                    if (it.mediaPlayer != null && it.mediaPlayer!!.isPlaying) {
+                        val current = it.getCurrentPos()
+                        val duration = it.getDuration()
+                        seekBar.max = duration
+                        seekBar.progress = current
+                        tvCurrentTime.text = formatTime(current)
+                        tvTotalTime.text = formatTime(duration)
+                    }
+                }
+                handler.postDelayed(this, 1000)
+            }
+        })
+    }
+
+    private fun formatTime(ms: Int): String {
+        val min = (ms / 1000) / 60
+        val sec = (ms / 1000) % 60
+        return String.format("%02d:%02d", min, sec)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -111,7 +165,6 @@ class MainActivity : AppCompatActivity() {
             data?.data?.let { uri ->
                 val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
                 contentResolver.takePersistableUriPermission(uri, takeFlags)
-                
                 getSharedPreferences("MusicPrefs", MODE_PRIVATE).edit()
                     .putString("last_folder", uri.toString()).apply()
                 loadSongs(uri)
@@ -126,7 +179,6 @@ class MainActivity : AppCompatActivity() {
             try {
                 val root = DocumentFile.fromTreeUri(this@MainActivity, uri)
                 val mmr = MediaMetadataRetriever()
-                
                 root?.listFiles()?.forEach { file ->
                     val name = file.name?.lowercase() ?: ""
                     if (name.endsWith(".mp3") || name.endsWith(".m4a") || name.endsWith(".wav")) {
@@ -145,9 +197,6 @@ class MainActivity : AppCompatActivity() {
 
             withContext(Dispatchers.Main) {
                 loadingAnim.visibility = View.GONE
-                if (list.isEmpty()) {
-                    Toast.makeText(this@MainActivity, "Gada lagu di folder ini Manis!", Toast.LENGTH_SHORT).show()
-                }
                 musicService?.setList(list)
                 rv.adapter = SongAdapter(this@MainActivity, list) { _, _, songUri ->
                     val index = list.indexOfFirst { it.third == songUri }
@@ -177,6 +226,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        handler.removeCallbacksAndMessages(null)
         if (isBound) unbindService(connection)
         unregisterReceiver(guiReceiver)
     }

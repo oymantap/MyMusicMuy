@@ -26,7 +26,7 @@ class MusicService : Service() {
         const val ACTION_TOGGLE = "action_toggle"
         const val ACTION_STOP = "action_stop"
         const val ACTION_NEXT = "action_next"
-        const val ACTION_PREV = "action_prev" // Tambah Action Prev
+        const val ACTION_PREV = "action_prev"
         const val CHANNEL_ID = "music_muy_v6"
     }
 
@@ -39,6 +39,11 @@ class MusicService : Service() {
             isActive = true
         }
     }
+
+    // --- FUNGSI UNTUK SEEKBAR & TIMER ---
+    fun getDuration(): Int = mediaPlayer?.duration ?: 0
+    fun getCurrentPos(): Int = mediaPlayer?.currentPosition ?: 0
+    fun seekTo(pos: Int) { mediaPlayer?.seekTo(pos) }
 
     fun setList(newList: List<Triple<String, String, Uri>>) {
         songList.clear()
@@ -71,7 +76,6 @@ class MusicService : Service() {
         if (songList.isNotEmpty()) playMusic((currentIndex + 1) % songList.size)
     }
 
-    // Fungsi Prev
     fun playPrevious() {
         if (songList.isNotEmpty()) {
             var newIndex = currentIndex - 1
@@ -130,8 +134,7 @@ class MusicService : Service() {
         val pNext = PendingIntent.getService(this, 1, Intent(this, MusicService::class.java).apply { action = ACTION_NEXT }, flag)
         val pStop = PendingIntent.getService(this, 2, Intent(this, MusicService::class.java).apply { action = ACTION_STOP }, flag)
 
-        // Biar ukuran tombol kaga kegedean, kita masukin 3 tombol (Prev, Play, Next)
-        // Indeks Action: 0=Prev, 1=Toggle, 2=Next
+        // Trik: Kasih 3 tombol biar icon-nya mengecil otomatis
         val mediaStyle = androidx.media.app.NotificationCompat.MediaStyle()
             .setMediaSession(mediaSession.sessionToken)
             .setShowActionsInCompactView(0, 1, 2) 
@@ -145,14 +148,9 @@ class MusicService : Service() {
             .setSilent(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setStyle(mediaStyle)
-            // ACTION 0: PREV
-            .addAction(R.drawable.ic_prev, "Previous", pPrev)
-            // ACTION 1: TOGGLE
+            .addAction(R.drawable.ic_prev, "Prev", pPrev)
             .addAction(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play, "Toggle", pToggle)
-            // ACTION 2: NEXT
             .addAction(R.drawable.ic_next, "Next", pNext)
-            // ACTION 3: STOP
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", pStop)
             .build()
 
         startForeground(1, notification)
@@ -176,7 +174,7 @@ class MusicService : Service() {
                 mediaSession.isActive = false
                 stopForeground(true)
                 stopSelf()
-                sendBroadcast(Intent("FINISH_APP"))
+                sendBroadcast(Intent("HIDE_MINI_PLAYER")) // Broadcast khusus tutup bar doang
             }
         }
         return START_STICKY
@@ -184,6 +182,7 @@ class MusicService : Service() {
 
     override fun onDestroy() {
         mediaSession.release()
+        mediaPlayer?.release()
         super.onDestroy()
     }
 }
