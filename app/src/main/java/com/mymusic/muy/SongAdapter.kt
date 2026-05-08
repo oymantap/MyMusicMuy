@@ -22,23 +22,23 @@ class SongAdapter(
 
     override fun onCreateViewHolder(p: ViewGroup, t: Int) = VH(LayoutInflater.from(ctx).inflate(R.layout.item_song, p, false))
 
- override fun onBindViewHolder(h: VH, p: Int) {
+override fun onBindViewHolder(h: VH, p: Int) {
     val (t, a, u) = songs[p]
     h.title.text = t
     h.artist.text = a
 
-    // HAPUS MediaMetadataRetriever-nya, ganti pake ini:
+    // Jalan ninja: Ambil cover pake MediaMetadataRetriever tapi DI DALAM Glide
+    // Jadi Glide yang tanggung jawab ngerjain di background thread
     Glide.with(ctx)
-        .load(u) // Glide bisa langsung baca cover dari URI lagu!
-        .placeholder(android.R.drawable.ic_media_play) // Gambar sementara pas loading
-        .error(android.R.drawable.ic_media_play) // Gambar kalau lagu gak punya cover
-        .thumbnail(0.1f) // Load versi buram dulu biar cepet
+        .load(u)
+        .signature(com.bumptech.glide.signature.ObjectKey(u.toString())) // Biar gak salah ambil cache
+        .placeholder(android.R.drawable.ic_media_play)
+        .error(android.R.drawable.ic_media_play)
         .centerCrop()
         .into(h.img)
 
     h.itemView.setOnClickListener { onClick(t, a, u) }
 }
-
 
     override fun getItemCount() = songs.size
 }
