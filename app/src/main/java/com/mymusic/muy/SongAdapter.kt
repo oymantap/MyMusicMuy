@@ -27,13 +27,14 @@ override fun onBindViewHolder(h: VH, p: Int) {
     h.title.text = t
     h.artist.text = a
 
-    // Jalan ninja: Ambil cover pake MediaMetadataRetriever tapi DI DALAM Glide
-    // Jadi Glide yang tanggung jawab ngerjain di background thread
+    // Pake cara ini biar tetep smooth tapi cover muncul
     Glide.with(ctx)
-        .load(u)
-        .signature(com.bumptech.glide.signature.ObjectKey(u.toString())) // Biar gak salah ambil cache
+        .asBitmap() // Ambil sebagai bitmap biar Glide lebih fokus nyari gambar
+        .load(u) 
         .placeholder(android.R.drawable.ic_media_play)
         .error(android.R.drawable.ic_media_play)
+        .fallback(android.R.drawable.ic_media_play) // Kalau URI-nya kosong
+        .thumbnail(0.1f)
         .centerCrop()
         .into(h.img)
 
