@@ -1,12 +1,16 @@
 package com.mymusic.muy
 
+import android.Manifest
 import android.content.*
+import android.content.pm.PackageManager
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.*
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -59,6 +63,13 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // REQUEST PERMISSION NOTIFIKASI (BIAR NOTIF KAGA MATI SURI)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
+
         loadingAnim = findViewById(R.id.loadingAnim)
         miniCover = findViewById(R.id.miniCover)
         miniPlayer = findViewById(R.id.miniPlayer)
@@ -98,7 +109,6 @@ class MainActivity : AppCompatActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (resultCode == RESULT_OK && requestCode == 100) {
             data?.data?.let { uri ->
-                // IZIN KRUSIAL: Biar folder tetep bisa dibaca setelah app ditutup
                 val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
                 contentResolver.takePersistableUriPermission(uri, takeFlags)
                 
