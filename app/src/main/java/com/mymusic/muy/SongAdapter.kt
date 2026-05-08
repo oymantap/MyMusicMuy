@@ -26,7 +26,6 @@ class SongAdapter(
         val (t, a, u) = songs[p]
         h.title.text = t
         h.artist.text = a
-        h.title.isSelected = true
 
         try {
             val mmr = MediaMetadataRetriever()
