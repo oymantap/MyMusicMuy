@@ -4,6 +4,9 @@ import android.app.*
 import android.content.*
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.MediaMetadataRetriever
 import android.media.MediaPlayer
 import android.net.Uri
@@ -19,8 +22,18 @@ class MusicService : Service() {
     var mediaPlayer: MediaPlayer? = null
     private val binder = MusicBinder()
     private lateinit var mediaSession: MediaSessionCompat
+    private lateinit var audioManager: AudioManager
     var songList = mutableListOf<Triple<String, String, Uri>>()
     var currentIndex = -1
+
+    // Listener buat Audio Focus (Biar gak tabrakan sama WA/Status)
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS -> if (mediaPlayer?.isPlaying == true) togglePlay()
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> if (mediaPlayer?.isPlaying == true) mediaPlayer?.pause()
+            AudioManager.AUDIOFOCUS_GAIN -> if (mediaPlayer != null && !mediaPlayer!!.isPlaying) mediaPlayer?.start()
+        }
+    }
 
     companion object {
         const val ACTION_TOGGLE = "action_toggle"
@@ -35,6 +48,7 @@ class MusicService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         mediaSession = MediaSessionCompat(this, "MusicService").apply {
             isActive = true
         }
@@ -51,25 +65,44 @@ class MusicService : Service() {
 
     fun playMusic(index: Int) {
         if (index < 0 || index >= songList.size) return
-        currentIndex = index
-        val (title, artist, uri) = songList[index]
         
-        mediaPlayer?.stop()
-        mediaPlayer?.release()
-        
-        try {
-            mediaPlayer = MediaPlayer.create(this, uri).apply {
-                start()
-                setOnCompletionListener { playNext() }
-            }
-            updateMetadata(title, artist, uri)
-            updatePlaybackState(true) // BUAT NOTIF BAR
-            showNotification(title, artist, true)
-            updateActivityUI(true, title, uri)
-        } catch (e: Exception) { e.printStackTrace() }
+        // Minta izin Audio Focus sebelum putar lagu
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build())
+                .setAcceptsDelayedFocusGain(true)
+                .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                .build()
+            audioManager.requestAudioFocus(focusRequest)
+        } else {
+            audioManager.requestAudioFocus(audioFocusChangeListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
+        }
+
+        if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            currentIndex = index
+            val (title, artist, uri) = songList[index]
+            
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+            
+            try {
+                mediaPlayer = MediaPlayer.create(this, uri).apply {
+                    start()
+                    setOnCompletionListener { playNext() }
+                }
+                updateMetadata(title, artist, uri)
+                updatePlaybackState(true)
+                showNotification(title, artist, true)
+                updateActivityUI(true, title, uri)
+            } catch (e: Exception) { e.printStackTrace() }
+        }
     }
 
     fun playNext() { if (songList.isNotEmpty()) playMusic((currentIndex + 1) % songList.size) }
+    
     fun playPrevious() {
         if (songList.isNotEmpty()) {
             val next = if (currentIndex - 1 < 0) songList.size - 1 else currentIndex - 1
@@ -96,7 +129,7 @@ class MusicService : Service() {
             .setActions(PlaybackStateCompat.ACTION_PLAY_PAUSE or 
                        PlaybackStateCompat.ACTION_SKIP_TO_NEXT or 
                        PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
-                       PlaybackStateCompat.ACTION_SEEK_TO) // IZINKAN GESER DI NOTIF
+                       PlaybackStateCompat.ACTION_SEEK_TO)
             .build())
     }
 
@@ -133,7 +166,8 @@ class MusicService : Service() {
             .setContentTitle(title)
             .setContentText(artist)
             .setLargeIcon(mediaSession.controller.metadata?.getBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART))
-            .setOngoing(isPlaying)
+            // NOTIF BISA DIGESER KALU LAGU MATI/PAUSE
+            .setOngoing(isPlaying) 
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setStyle(androidx.media.app.NotificationCompat.MediaStyle()
                 .setMediaSession(mediaSession.sessionToken)
@@ -143,7 +177,18 @@ class MusicService : Service() {
             .addAction(R.drawable.ic_next, "Next", pNext)
             .build()
 
-        startForeground(1, notification)
+        // Jika lagu jalan, masuk foreground (gak bisa dihapus)
+        // Jika lagu pause, stop foreground tapi tetep tampilin notif (biar bisa di-swipe)
+        if (isPlaying) {
+            startForeground(1, notification)
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_DETACH)
+            } else {
+                stopForeground(false)
+            }
+            nm.notify(1, notification)
+        }
     }
 
     private fun updateActivityUI(isPlaying: Boolean, title: String, uri: Uri) {
@@ -159,14 +204,24 @@ class MusicService : Service() {
             ACTION_PREV -> playPrevious()
             ACTION_TOGGLE -> togglePlay()
             ACTION_NEXT -> playNext()
-            ACTION_STOP -> {
-                mediaPlayer?.stop()
-                stopForeground(true)
-                stopSelf()
-                sendBroadcast(Intent("HIDE_MINI_PLAYER"))
-            }
+            ACTION_STOP -> stopEverything()
         }
         return START_STICKY
+    }
+
+    // FITUR SWIPE TO KILL (Beneran close app dari recent)
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        stopEverything()
+    }
+
+    private fun stopEverything() {
+        mediaPlayer?.stop()
+        mediaPlayer?.release()
+        mediaPlayer = null
+        stopForeground(true)
+        stopSelf()
+        sendBroadcast(Intent("HIDE_MINI_PLAYER"))
     }
 
     override fun onDestroy() {
