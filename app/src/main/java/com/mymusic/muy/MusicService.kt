@@ -40,7 +40,6 @@ class MusicService : Service() {
         }
     }
 
-    // --- FUNGSI UNTUK SEEKBAR & TIMER ---
     fun getDuration(): Int = mediaPlayer?.duration ?: 0
     fun getCurrentPos(): Int = mediaPlayer?.currentPosition ?: 0
     fun seekTo(pos: Int) { mediaPlayer?.seekTo(pos) }
@@ -63,24 +62,18 @@ class MusicService : Service() {
                 start()
                 setOnCompletionListener { playNext() }
             }
-            
             updateMetadata(title, artist, uri)
+            updatePlaybackState(true) // BUAT NOTIF BAR
             showNotification(title, artist, true)
             updateActivityUI(true, title, uri)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
-    fun playNext() {
-        if (songList.isNotEmpty()) playMusic((currentIndex + 1) % songList.size)
-    }
-
+    fun playNext() { if (songList.isNotEmpty()) playMusic((currentIndex + 1) % songList.size) }
     fun playPrevious() {
         if (songList.isNotEmpty()) {
-            var newIndex = currentIndex - 1
-            if (newIndex < 0) newIndex = songList.size - 1
-            playMusic(newIndex)
+            val next = if (currentIndex - 1 < 0) songList.size - 1 else currentIndex - 1
+            playMusic(next)
         }
     }
 
@@ -88,18 +81,23 @@ class MusicService : Service() {
         mediaPlayer?.let {
             if (it.isPlaying) it.pause() else it.start()
             val (t, a, u) = songList[currentIndex]
-            
-            val state = if (it.isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED
-            mediaSession.setPlaybackState(PlaybackStateCompat.Builder()
-                .setState(state, it.currentPosition.toLong(), 1f)
-                .setActions(PlaybackStateCompat.ACTION_PLAY_PAUSE or PlaybackStateCompat.ACTION_SKIP_TO_NEXT or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS)
-                .build())
-
+            updatePlaybackState(it.isPlaying)
             showNotification(t, a, it.isPlaying)
             updateActivityUI(it.isPlaying, t, u)
             return it.isPlaying
         }
         return false
+    }
+
+    private fun updatePlaybackState(isPlaying: Boolean) {
+        val state = if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED
+        mediaSession.setPlaybackState(PlaybackStateCompat.Builder()
+            .setState(state, mediaPlayer?.currentPosition?.toLong() ?: 0L, 1f)
+            .setActions(PlaybackStateCompat.ACTION_PLAY_PAUSE or 
+                       PlaybackStateCompat.ACTION_SKIP_TO_NEXT or 
+                       PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
+                       PlaybackStateCompat.ACTION_SEEK_TO) // IZINKAN GESER DI NOTIF
+            .build())
     }
 
     private fun updateMetadata(title: String, artist: String, uri: Uri) {
@@ -108,14 +106,13 @@ class MusicService : Service() {
         try {
             mmr.setDataSource(this, uri)
             val art = mmr.embeddedPicture
-            if (art != null) {
-                bitmap = BitmapFactory.decodeByteArray(art, 0, art.size)
-            }
+            if (art != null) bitmap = BitmapFactory.decodeByteArray(art, 0, art.size)
         } catch (e: Exception) { } finally { mmr.release() }
 
         mediaSession.setMetadata(MediaMetadataCompat.Builder()
             .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
             .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
+            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, mediaPlayer?.duration?.toLong() ?: 0L)
             .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, bitmap)
             .build())
     }
@@ -123,31 +120,24 @@ class MusicService : Service() {
     private fun showNotification(title: String, artist: String, isPlaying: Boolean) {
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "Music Playback", NotificationManager.IMPORTANCE_LOW)
-            channel.setShowBadge(false)
-            nm.createNotificationChannel(channel)
+            nm.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Music Muy", NotificationManager.IMPORTANCE_LOW))
         }
 
         val flag = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val pPrev = PendingIntent.getService(this, 3, Intent(this, MusicService::class.java).apply { action = ACTION_PREV }, flag)
         val pToggle = PendingIntent.getService(this, 0, Intent(this, MusicService::class.java).apply { action = ACTION_TOGGLE }, flag)
         val pNext = PendingIntent.getService(this, 1, Intent(this, MusicService::class.java).apply { action = ACTION_NEXT }, flag)
-        val pStop = PendingIntent.getService(this, 2, Intent(this, MusicService::class.java).apply { action = ACTION_STOP }, flag)
-
-        // Trik: Kasih 3 tombol biar icon-nya mengecil otomatis
-        val mediaStyle = androidx.media.app.NotificationCompat.MediaStyle()
-            .setMediaSession(mediaSession.sessionToken)
-            .setShowActionsInCompactView(0, 1, 2) 
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_play) 
+            .setSmallIcon(R.drawable.ic_play)
             .setContentTitle(title)
             .setContentText(artist)
             .setLargeIcon(mediaSession.controller.metadata?.getBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART))
             .setOngoing(isPlaying)
-            .setSilent(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setStyle(mediaStyle)
+            .setStyle(androidx.media.app.NotificationCompat.MediaStyle()
+                .setMediaSession(mediaSession.sessionToken)
+                .setShowActionsInCompactView(0, 1, 2))
             .addAction(R.drawable.ic_prev, "Prev", pPrev)
             .addAction(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play, "Toggle", pToggle)
             .addAction(R.drawable.ic_next, "Next", pNext)
@@ -171,10 +161,9 @@ class MusicService : Service() {
             ACTION_NEXT -> playNext()
             ACTION_STOP -> {
                 mediaPlayer?.stop()
-                mediaSession.isActive = false
                 stopForeground(true)
                 stopSelf()
-                sendBroadcast(Intent("HIDE_MINI_PLAYER")) // Broadcast khusus tutup bar doang
+                sendBroadcast(Intent("HIDE_MINI_PLAYER"))
             }
         }
         return START_STICKY

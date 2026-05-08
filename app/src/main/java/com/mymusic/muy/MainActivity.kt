@@ -31,7 +31,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var miniCover: ImageView
     private lateinit var loadingAnim: ProgressBar
     
-    // VARIABEL BARU UNTUK SEEKBAR & TIMER
     private lateinit var seekBar: SeekBar
     private lateinit var tvCurrentTime: TextView
     private lateinit var tvTotalTime: TextView
@@ -47,15 +46,12 @@ class MainActivity : AppCompatActivity() {
                     
                     btnPlayPause.setImageResource(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
                     miniTitle.text = title ?: "Unknown"
+                    miniTitle.isSelected = true // PAKSA MARQUEE JALAN
                     miniPlayer.visibility = View.VISIBLE
                     uriStr?.let { updateMiniCover(Uri.parse(it)) }
                 }
-                "HIDE_MINI_PLAYER" -> {
-                    miniPlayer.visibility = View.GONE
-                }
-                "FINISH_APP" -> {
-                    finish()
-                }
+                "HIDE_MINI_PLAYER" -> miniPlayer.visibility = View.GONE
+                "FINISH_APP" -> finish()
             }
         }
     }
@@ -86,13 +82,10 @@ class MainActivity : AppCompatActivity() {
         btnPlayPause = findViewById(R.id.btnPlayPause)
         btnCloseMini = findViewById(R.id.btnCloseMini)
         miniTitle = findViewById(R.id.miniTitle)
-        
-        // INIT VIEW SEEKBAR & TIMER
         seekBar = findViewById(R.id.seekBar)
         tvCurrentTime = findViewById(R.id.tvCurrentTime)
         tvTotalTime = findViewById(R.id.tvTotalTime)
         
-        miniTitle.isSelected = true
         rv = findViewById(R.id.recyclerViewMusic)
         rv.layoutManager = LinearLayoutManager(this)
 
@@ -108,15 +101,11 @@ class MainActivity : AppCompatActivity() {
         bindService(intent, connection, BIND_AUTO_CREATE)
 
         btnPlayPause.setOnClickListener { musicService?.togglePlay() }
-        
-        // FIX: Klik X matikan lagu & tutup bar, tapi APP TIDAK CLOSE
         btnCloseMini.setOnClickListener {
             val stopIntent = Intent(this, MusicService::class.java).apply { action = MusicService.ACTION_STOP }
             startService(stopIntent)
-            // miniPlayer.visibility = View.GONE -> sudah dihandle di guiReceiver "HIDE_MINI_PLAYER"
         }
 
-        // Handle Geser SeekBar
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) {
                 if (fromUser) musicService?.seekTo(p)
@@ -134,12 +123,11 @@ class MainActivity : AppCompatActivity() {
         startSeekBarUpdate()
     }
 
-    // UPDATE PROGRESS SETIAP DETIK
     private fun startSeekBarUpdate() {
         handler.post(object : Runnable {
             override fun run() {
                 musicService?.let {
-                    if (it.mediaPlayer != null && it.mediaPlayer!!.isPlaying) {
+                    if (it.mediaPlayer != null) {
                         val current = it.getCurrentPos()
                         val duration = it.getDuration()
                         seekBar.max = duration
@@ -213,14 +201,9 @@ class MainActivity : AppCompatActivity() {
                 mmr.setDataSource(this@MainActivity, uri)
                 val art = mmr.embeddedPicture
                 withContext(Dispatchers.Main) {
-                    Glide.with(this@MainActivity)
-                        .load(art ?: R.drawable.ic_play)
-                        .error(android.R.drawable.ic_media_play)
-                        .into(miniCover)
+                    Glide.with(this@MainActivity).load(art ?: R.drawable.ic_play).into(miniCover)
                 }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) { miniCover.setImageResource(android.R.drawable.ic_media_play) }
-            } finally { mmr.release() }
+            } catch (e: Exception) { } finally { mmr.release() }
         }
     }
 
