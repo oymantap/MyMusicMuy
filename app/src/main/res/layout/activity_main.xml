@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000000">
@@ -23,10 +24,19 @@
         android:padding="8dp"
         android:clipToPadding="false"/>
 
+    <ProgressBar
+        android:id="@+id/loadingAnim"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_centerInParent="true"
+        android:indeterminateTint="#FFFFFF"
+        android:elevation="10dp"
+        android:visibility="gone" />
+
     <LinearLayout
         android:id="@+id/miniPlayer"
         android:layout_width="match_parent"
-        android:layout_height="70dp"
+        android:layout_height="75dp"
         android:layout_above="@+id/btnPickFolder"
         android:layout_marginHorizontal="20dp"
         android:layout_marginBottom="10dp"
@@ -36,10 +46,9 @@
         android:visibility="gone">
 
         <androidx.cardview.widget.CardView
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            xmlns:app="http://schemas.android.com/apk/res-auto"
-            app:cardCornerRadius="8dp"
+            android:layout_width="55dp"
+            android:layout_height="55dp"
+            app:cardCornerRadius="10dp"
             app:cardElevation="0dp">
             <ImageView
                 android:id="@+id/miniCover"
@@ -67,7 +76,15 @@
             android:layout_height="45dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_media_pause"
-            android:tint="#FFFFFF" />
+            app:tint="#FFFFFF" />
+
+        <ImageButton
+            android:id="@+id/btnCloseMini"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            app:tint="#FFFFFF" />
     </LinearLayout>
 
     <Button
