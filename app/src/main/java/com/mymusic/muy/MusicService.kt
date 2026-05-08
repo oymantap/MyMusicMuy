@@ -34,7 +34,6 @@ class MusicService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        // 1. INIT MEDIA SESSION (WAJIB BUAT NOTIF MEDIA)
         mediaSession = MediaSessionCompat(this, "MusicService").apply {
             isActive = true
         }
@@ -59,7 +58,6 @@ class MusicService : Service() {
                 setOnCompletionListener { playNext() }
             }
             
-            // 2. UPDATE SYSTEM METADATA (BIAR COVER MUNCUL)
             updateMetadata(title, artist, uri)
             showNotification(title, artist, true)
             updateActivityUI(true, title, uri)
@@ -77,7 +75,6 @@ class MusicService : Service() {
             if (it.isPlaying) it.pause() else it.start()
             val (t, a, u) = songList[currentIndex]
             
-            // Update state playback
             val state = if (it.isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED
             mediaSession.setPlaybackState(PlaybackStateCompat.Builder()
                 .setState(state, it.currentPosition.toLong(), 1f)
@@ -122,22 +119,27 @@ class MusicService : Service() {
         val pNext = PendingIntent.getService(this, 1, Intent(this, MusicService::class.java).apply { action = ACTION_NEXT }, flag)
         val pStop = PendingIntent.getService(this, 2, Intent(this, MusicService::class.java).apply { action = ACTION_STOP }, flag)
 
-        // Bikin Style Media
+        // Indeks Action: 0 = Toggle, 1 = Next, 2 = Stop
         val mediaStyle = androidx.media.app.NotificationCompat.MediaStyle()
             .setMediaSession(mediaSession.sessionToken)
-            .setShowActionsInCompactView(0, 1) // Play & Next muncul di mode kecil
+            .setShowActionsInCompactView(0, 1) // Munculin Toggle dan Next di bar kecil
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_play) // PASTIKAN FILE INI ADA DI DRAWABLE
+            // Small Icon wajib pakai yang simple (bisa pake ic_play lu tapi Android bakal bikin jadi siluet putih)
+            .setSmallIcon(R.drawable.ic_play) 
             .setContentTitle(title)
             .setContentText(artist)
+            // Large Icon bakal nampilin Cover Album lagu lu
             .setLargeIcon(mediaSession.controller.metadata?.getBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART))
             .setOngoing(isPlaying)
-            .setSilent(true) // Biar kaga bunyi 'tet' tiap ganti lagu
+            .setSilent(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setStyle(mediaStyle)
+            // ACTION 0: Toggle Play/Pause (PAKE ICON PNG LU)
             .addAction(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play, "Toggle", pToggle)
+            // ACTION 1: Next (PAKE ICON PNG LU)
             .addAction(R.drawable.ic_next, "Next", pNext)
+            // ACTION 2: Stop (Pake bawaan biar gampang)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", pStop)
             .build()
 
