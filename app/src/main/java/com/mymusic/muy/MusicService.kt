@@ -26,6 +26,7 @@ class MusicService : Service() {
         const val ACTION_TOGGLE = "action_toggle"
         const val ACTION_STOP = "action_stop"
         const val ACTION_NEXT = "action_next"
+        const val ACTION_PREV = "action_prev" // Tambah Action Prev
         const val CHANNEL_ID = "music_muy_v6"
     }
 
@@ -70,6 +71,15 @@ class MusicService : Service() {
         if (songList.isNotEmpty()) playMusic((currentIndex + 1) % songList.size)
     }
 
+    // Fungsi Prev
+    fun playPrevious() {
+        if (songList.isNotEmpty()) {
+            var newIndex = currentIndex - 1
+            if (newIndex < 0) newIndex = songList.size - 1
+            playMusic(newIndex)
+        }
+    }
+
     fun togglePlay(): Boolean {
         mediaPlayer?.let {
             if (it.isPlaying) it.pause() else it.start()
@@ -78,7 +88,7 @@ class MusicService : Service() {
             val state = if (it.isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED
             mediaSession.setPlaybackState(PlaybackStateCompat.Builder()
                 .setState(state, it.currentPosition.toLong(), 1f)
-                .setActions(PlaybackStateCompat.ACTION_PLAY_PAUSE or PlaybackStateCompat.ACTION_SKIP_TO_NEXT)
+                .setActions(PlaybackStateCompat.ACTION_PLAY_PAUSE or PlaybackStateCompat.ACTION_SKIP_TO_NEXT or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS)
                 .build())
 
             showNotification(t, a, it.isPlaying)
@@ -115,31 +125,33 @@ class MusicService : Service() {
         }
 
         val flag = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val pPrev = PendingIntent.getService(this, 3, Intent(this, MusicService::class.java).apply { action = ACTION_PREV }, flag)
         val pToggle = PendingIntent.getService(this, 0, Intent(this, MusicService::class.java).apply { action = ACTION_TOGGLE }, flag)
         val pNext = PendingIntent.getService(this, 1, Intent(this, MusicService::class.java).apply { action = ACTION_NEXT }, flag)
         val pStop = PendingIntent.getService(this, 2, Intent(this, MusicService::class.java).apply { action = ACTION_STOP }, flag)
 
-        // Indeks Action: 0 = Toggle, 1 = Next, 2 = Stop
+        // Biar ukuran tombol kaga kegedean, kita masukin 3 tombol (Prev, Play, Next)
+        // Indeks Action: 0=Prev, 1=Toggle, 2=Next
         val mediaStyle = androidx.media.app.NotificationCompat.MediaStyle()
             .setMediaSession(mediaSession.sessionToken)
-            .setShowActionsInCompactView(0, 1) // Munculin Toggle dan Next di bar kecil
+            .setShowActionsInCompactView(0, 1, 2) 
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            // Small Icon wajib pakai yang simple (bisa pake ic_play lu tapi Android bakal bikin jadi siluet putih)
             .setSmallIcon(R.drawable.ic_play) 
             .setContentTitle(title)
             .setContentText(artist)
-            // Large Icon bakal nampilin Cover Album lagu lu
             .setLargeIcon(mediaSession.controller.metadata?.getBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART))
             .setOngoing(isPlaying)
             .setSilent(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setStyle(mediaStyle)
-            // ACTION 0: Toggle Play/Pause (PAKE ICON PNG LU)
+            // ACTION 0: PREV
+            .addAction(R.drawable.ic_prev, "Previous", pPrev)
+            // ACTION 1: TOGGLE
             .addAction(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play, "Toggle", pToggle)
-            // ACTION 1: Next (PAKE ICON PNG LU)
+            // ACTION 2: NEXT
             .addAction(R.drawable.ic_next, "Next", pNext)
-            // ACTION 2: Stop (Pake bawaan biar gampang)
+            // ACTION 3: STOP
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", pStop)
             .build()
 
@@ -156,6 +168,7 @@ class MusicService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
+            ACTION_PREV -> playPrevious()
             ACTION_TOGGLE -> togglePlay()
             ACTION_NEXT -> playNext()
             ACTION_STOP -> {
