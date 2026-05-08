@@ -37,7 +37,6 @@ class MainActivity : AppCompatActivity() {
                 btnPlayPause.setImageResource(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
                 miniTitle.text = title ?: "Unknown"
                 miniPlayer.visibility = View.VISIBLE
-                
                 uriStr?.let { updateMiniCover(Uri.parse(it)) }
             } else if (intent?.action == "FINISH_APP") {
                 miniPlayer.visibility = View.GONE
@@ -76,24 +75,79 @@ class MainActivity : AppCompatActivity() {
             addAction("FINISH_APP")
         })
 
-        bindService(Intent(this, MusicService::class.java), connection, BIND_AUTO_CREATE)
+        val intent = Intent(this, MusicService::class.java)
+        startService(intent)
+        bindService(intent, connection, BIND_AUTO_CREATE)
 
         btnPlayPause.setOnClickListener { musicService?.togglePlay() }
-        
         btnCloseMini.setOnClickListener {
-            // Kirim command stop ke service
-            val intent = Intent(this, MusicService::class.java).apply { action = MusicService.ACTION_STOP }
-            startService(intent)
+            val stopIntent = Intent(this, MusicService::class.java).apply { action = MusicService.ACTION_STOP }
+            startService(stopIntent)
             miniPlayer.visibility = View.GONE
         }
 
         findViewById<Button>(R.id.btnPickFolder).setOnClickListener {
-            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), 100)
+            val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or 
+                      Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            startActivityForResult(i, 100)
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode == RESULT_OK && requestCode == 100) {
+            data?.data?.let { uri ->
+                // IZIN KRUSIAL: Biar folder tetep bisa dibaca setelah app ditutup
+                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                contentResolver.takePersistableUriPermission(uri, takeFlags)
+                
+                getSharedPreferences("MusicPrefs", MODE_PRIVATE).edit()
+                    .putString("last_folder", uri.toString()).apply()
+                loadSongs(uri)
+            }
+        }
+    }
+
+    private fun loadSongs(uri: Uri) {
+        loadingAnim.visibility = View.VISIBLE
+        lifecycleScope.launch(Dispatchers.IO) {
+            val list = mutableListOf<Triple<String, String, Uri>>()
+            try {
+                val root = DocumentFile.fromTreeUri(this@MainActivity, uri)
+                val mmr = MediaMetadataRetriever()
+                
+                root?.listFiles()?.forEach { file ->
+                    val name = file.name?.lowercase() ?: ""
+                    if (name.endsWith(".mp3") || name.endsWith(".m4a") || name.endsWith(".wav")) {
+                        try {
+                            mmr.setDataSource(this@MainActivity, file.uri)
+                            val t = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: file.name ?: "Unknown"
+                            val a = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: "Unknown Artist"
+                            list.add(Triple(t, a, file.uri))
+                        } catch (e: Exception) {
+                            list.add(Triple(file.name ?: "Unknown", "Unknown Artist", file.uri))
+                        }
+                    }
+                }
+                mmr.release()
+            } catch (e: Exception) { e.printStackTrace() }
+
+            withContext(Dispatchers.Main) {
+                loadingAnim.visibility = View.GONE
+                if (list.isEmpty()) {
+                    Toast.makeText(this@MainActivity, "Gada lagu di folder ini Manis!", Toast.LENGTH_SHORT).show()
+                }
+                musicService?.setList(list)
+                rv.adapter = SongAdapter(this@MainActivity, list) { _, _, songUri ->
+                    val index = list.indexOfFirst { it.third == songUri }
+                    musicService?.playMusic(index)
+                }
+            }
         }
     }
 
     private fun updateMiniCover(uri: Uri) {
-        // Pake coroutine biar gak lag pas ambil gambar
         lifecycleScope.launch(Dispatchers.IO) {
             val mmr = MediaMetadataRetriever()
             try {
@@ -101,41 +155,13 @@ class MainActivity : AppCompatActivity() {
                 val art = mmr.embeddedPicture
                 withContext(Dispatchers.Main) {
                     Glide.with(this@MainActivity)
-                        .load(art ?: R.drawable.ic_play) // Pake asset lu
+                        .load(art ?: R.drawable.ic_play)
                         .error(android.R.drawable.ic_media_play)
                         .into(miniCover)
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) { miniCover.setImageResource(android.R.drawable.ic_media_play) }
             } finally { mmr.release() }
-        }
-    }
-
-    private fun loadSongs(uri: Uri) {
-        loadingAnim.visibility = View.VISIBLE
-        lifecycleScope.launch(Dispatchers.IO) {
-            val root = DocumentFile.fromTreeUri(this@MainActivity, uri)
-            val list = mutableListOf<Triple<String, String, Uri>>()
-            val mmr = MediaMetadataRetriever()
-            root?.listFiles()?.forEach { file ->
-                if (file.name?.lowercase()?.run { endsWith(".mp3") || endsWith(".m4a") } == true) {
-                    try {
-                        mmr.setDataSource(this@MainActivity, file.uri)
-                        val t = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: file.name ?: "Unknown"
-                        val a = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: "Unknown Artist"
-                        list.add(Triple(t, a, file.uri))
-                    } catch (e: Exception) { list.add(Triple(file.name!!, "Unknown Artist", file.uri)) }
-                }
-            }
-            mmr.release()
-            withContext(Dispatchers.Main) {
-                loadingAnim.visibility = View.GONE
-                musicService?.setList(list)
-                rv.adapter = SongAdapter(this@MainActivity, list) { _, _, songUri ->
-                    val index = list.indexOfFirst { it.third == songUri }
-                    musicService?.playMusic(index)
-                }
-            }
         }
     }
 
