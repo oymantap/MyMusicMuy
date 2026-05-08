@@ -39,10 +39,15 @@ android {
             )
         }
     }
-    compileOptions {
+     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    // Ganti kotlinOptions lama lu sama ini biar lebih modern
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+    }
+
     kotlinOptions {
         jvmTarget = "11"
     }
@@ -58,6 +63,18 @@ dependencies {
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
     implementation(libs.material)
+    
+    // --- TAMBAHKAN TIGA BARIS INI (WAJIB) ---
+    // 1. Buat MediaSession & Notifikasi Musik
+    implementation("androidx.media:media:1.7.0")
+    
+    // 2. Buat Glide (Load Gambar/Cover)
+    implementation("github.com.bumptech.glide:glide:4.16.0")
+    
+    // 3. Buat Annotation Processor Glide (Biar gak error bumbtech)
+    annotationProcessor("github.com.bumptech.glide:compiler:4.16.0")
+    // ----------------------------------------
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
