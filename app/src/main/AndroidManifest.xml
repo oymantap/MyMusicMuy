@@ -11,6 +11,7 @@
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="MyMusic Muy"
+        android:requestLegacyExternalStorage="true"
         android:theme="@style/Theme.MyMusicMuy">
 
         <activity android:name=".MainActivity" android:exported="true">
