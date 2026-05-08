@@ -1,12 +1,13 @@
 package com.mymusic.muy
 
+import android.content.ContentUris
 import android.content.Context
-import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.view.*
 import android.widget.*
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
 
 class SongAdapter(
     private val ctx: Context,
@@ -20,26 +21,35 @@ class SongAdapter(
         val artist: TextView = v.findViewById(R.id.txtArtist)
     }
 
-    override fun onCreateViewHolder(p: ViewGroup, t: Int) = VH(LayoutInflater.from(ctx).inflate(R.layout.item_song, p, false))
+    override fun onCreateViewHolder(p: ViewGroup, t: Int) = 
+        VH(LayoutInflater.from(ctx).inflate(R.layout.item_song, p, false))
 
-override fun onBindViewHolder(h: VH, p: Int) {
-    val (t, a, u) = songs[p]
-    h.title.text = t
-    h.artist.text = a
+    override fun onBindViewHolder(h: VH, p: Int) {
+        val (t, a, u) = songs[p]
+        h.title.text = t
+        h.artist.text = a
 
-    // Pake cara ini biar tetep smooth tapi cover muncul
-    Glide.with(ctx)
-        .asBitmap() // Ambil sebagai bitmap biar Glide lebih fokus nyari gambar
-        .load(u) 
-        .placeholder(android.R.drawable.ic_media_play)
-        .error(android.R.drawable.ic_media_play)
-        .fallback(android.R.drawable.ic_media_play) // Kalau URI-nya kosong
-        .thumbnail(0.1f)
-        .centerCrop()
-        .into(h.img)
+        // AMBIL ALBUM ID DARI URI UNTUK COVER
+        try {
+            val songId = u.lastPathSegment?.toLong() ?: 0L
+            // Ini URI sakti buat manggil cover album lewat database media Android
+            val sArtworkUri = Uri.parse("content://media/external/audio/albumart")
+            val albumArtUri = ContentUris.withAppendedId(sArtworkUri, songId)
 
-    h.itemView.setOnClickListener { onClick(t, a, u) }
-}
+            Glide.with(ctx)
+                .load(u) // Coba load dari file dulu (Glide otomatis ekstrak metadata)
+                .error(Glide.with(ctx).load(albumArtUri)) // Kalau gagal, coba cari di folder albumart
+                .placeholder(android.R.drawable.ic_media_play)
+                .error(android.R.drawable.ic_media_play)
+                .centerCrop()
+                .diskCacheStrategy(DiskCacheStrategy.ALL) // Biar scroll balik tetep cepet
+                .into(h.img)
+        } catch (e: Exception) {
+            h.img.setImageResource(android.R.drawable.ic_media_play)
+        }
+
+        h.itemView.setOnClickListener { onClick(t, a, u) }
+    }
 
     override fun getItemCount() = songs.size
 }
