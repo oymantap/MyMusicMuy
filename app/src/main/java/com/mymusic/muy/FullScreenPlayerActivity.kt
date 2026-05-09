@@ -43,10 +43,9 @@ class FullScreenPlayerActivity : AppCompatActivity() {
         initViews()
         setupListeners()
 
-        // Setup ViewPager dengan Adapter
+        // Setup ViewPager dengan Adapter (Isinya CoverFragment & LyricsFragment)
         viewPager.adapter = FspAdapter(this)
 
-        // Bind ke Service
         val intent = Intent(this, MusicService::class.java)
         bindService(intent, connection, BIND_AUTO_CREATE)
         
@@ -59,7 +58,6 @@ class FullScreenPlayerActivity : AppCompatActivity() {
         txtTitle = findViewById(R.id.fspTitle)
         txtArtist = findViewById(R.id.fspArtist)
         
-        // Handle dua kemungkinan ID ImageButton (kalo lu pake layout modern yang gue kasih tadi)
         btnPlayPause = findViewById(R.id.fspPlayPause) 
         btnPlayPauseInner = findViewById(R.id.btnPlayPauseInner) ?: btnPlayPause
         
@@ -76,15 +74,17 @@ class FullScreenPlayerActivity : AppCompatActivity() {
         btnPlayPause.setOnClickListener(playAction)
         btnPlayPauseInner.setOnClickListener(playAction)
 
+        // DISINI PERBAIKANNYA: Panggil fungsi yang ada di MusicService lu
         findViewById<ImageButton>(R.id.fspPrev).setOnClickListener {
-            musicService?.playPrev()
+            musicService?.playPrevious() 
             updateUI()
         }
         findViewById<ImageButton>(R.id.fspNext).setOnClickListener {
             musicService?.playNext()
             updateUI()
         }
-        findViewById<ImageButton>(R.id.btnCloseFSP).setOnClickListener {
+        
+        findViewById<ImageButton>(R.id.btnCloseFSP)?.setOnClickListener {
             finish()
         }
 
@@ -99,29 +99,30 @@ class FullScreenPlayerActivity : AppCompatActivity() {
 
     private fun updateUI() {
         musicService?.let { service ->
-            val title = service.getCurrentTitle() ?: "Unknown Title"
+            val currentIndex = service.currentIndex
+            if (currentIndex == -1 || service.songList.isEmpty()) return
+
+            val (title, artist, _) = service.songList[currentIndex]
             txtTitle.text = title
+            txtArtist.text = artist
             txtTitle.isSelected = true 
 
             val art = service.getAlbumArt()
             
-            // 1. UPDATE COVER DI FRAGMENT (KUNCI UTAMA)
-            // ViewPager2 pake tag "f" + position buat fragment-nya
+            // Update Cover di Fragment (ViewPager position 0)
             val fragment = supportFragmentManager.findFragmentByTag("f0") as? CoverFragment
             fragment?.updateCover(art)
 
-            // 2. UPDATE BACKGROUND GLASS/PALETTE
+            // Palette Background
             if (art != null) {
                 Palette.from(art).generate { palette ->
                     val color = palette?.getDominantColor(Color.parseColor("#121212")) ?: Color.BLACK
                     rootLayout.setBackgroundColor(color)
-                    // Lu bisa tambahin background blur di ImageView fspBlurBg di sini kalo mau
                 }
             } else {
                 rootLayout.setBackgroundColor(Color.parseColor("#121212"))
             }
             
-            // 3. UPDATE TOMBOL & SEEKBAR
             val isPlaying = service.isPlaying()
             val icon = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
             btnPlayPause.setImageResource(icon)
@@ -141,7 +142,10 @@ class FullScreenPlayerActivity : AppCompatActivity() {
     private fun startUpdateLoop() {
         handler.post(object : Runnable {
             override fun run() {
-                if (isBound) updateUI()
+                if (isBound) {
+                    updateUI()
+                    // Re-sync seekbar tiap detik
+                }
                 handler.postDelayed(this, 1000)
             }
         })
