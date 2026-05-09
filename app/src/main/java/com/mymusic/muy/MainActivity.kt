@@ -117,6 +117,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupListeners() {
         btnPlayPause.setOnClickListener { musicService?.togglePlay() }
+        
+        // PINTU KE FULL SCREEN PLAYER (FSP)
+        miniPlayer.setOnClickListener {
+            if (musicService != null && musicService!!.currentIndex != -1) {
+                val intent = Intent(this, FullScreenPlayerActivity::class.java)
+                startActivity(intent)
+            }
+        }
+
         btnCloseMini.setOnClickListener {
             val stopIntent = Intent(this, MusicService::class.java).apply { 
                 action = MusicService.ACTION_STOP 
@@ -144,12 +153,17 @@ class MainActivity : AppCompatActivity() {
             }
 
             val playing = service.isPlaying()
-            val title = service.getCurrentTitle()
+            val title = service.getCurrentTitle() ?: "No Song"
             val art = service.getAlbumArt()
 
             btnPlayPause.setImageResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play)
-            miniTitle.text = title ?: "No Song"
-            miniTitle.isSelected = true 
+            
+            // PERBAIKAN MARQUEE: Hanya update teks jika judulnya berbeda
+            if (miniTitle.text.toString() != title) {
+                miniTitle.text = title
+                miniTitle.isSelected = true 
+            }
+            
             miniPlayer.visibility = View.VISIBLE
 
             if (art != null) {
@@ -166,7 +180,6 @@ private fun loadSongs(uri: Uri) {
         val list = mutableListOf<Triple<String, String, Uri>>()
         val mmr = MediaMetadataRetriever()
         
-        // List format yang kita sikat (lebih lengkap)
         val supportedExtensions = listOf(".mp3", ".m4a", ".wav", ".flac", ".ogg", ".aac", ".ts", ".mid", ".xmf", ".ota", ".opus")
 
         try {
@@ -174,7 +187,6 @@ private fun loadSongs(uri: Uri) {
             root?.listFiles()?.forEach { file ->
                 val fileName = file.name?.lowercase() ?: ""
                 
-                // Cek apakah file adalah audio berdasarkan ekstensi ATAU MimeType
                 val isAudio = supportedExtensions.any { fileName.endsWith(it) } || 
                               file.type?.startsWith("audio/") == true
 
@@ -183,7 +195,7 @@ private fun loadSongs(uri: Uri) {
                         mmr.setDataSource(this@MainActivity, file.uri)
                         
                         val title = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) 
-                                    ?: file.name?.substringBeforeLast(".") // Nama file tanpa .mp3
+                                    ?: file.name?.substringBeforeLast(".") 
                                     ?: "Unknown Title"
                                     
                         val artist = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) 
@@ -191,7 +203,6 @@ private fun loadSongs(uri: Uri) {
                         
                         list.add(Triple(title, artist, file.uri))
                     } catch (e: Exception) {
-                        // Kalau metadata gagal (misal file .wav sering gak ada tag-nya), pake nama file
                         val fallbackTitle = file.name?.substringBeforeLast(".") ?: "Unknown"
                         list.add(Triple(fallbackTitle, "Unknown Artist", file.uri))
                     }
