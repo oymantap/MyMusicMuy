@@ -14,7 +14,6 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -48,7 +47,7 @@ class MainActivity : AppCompatActivity() {
             when (intent?.action) {
                 "UPDATE_GUI" -> updateUIFromService()
                 "HIDE_MINI_PLAYER" -> miniPlayer.visibility = View.GONE
-                "FINISH_APP" -> finish()
+                // FINISH_APP dibuang biar gak close app sembarangan
             }
         }
     }
@@ -86,7 +85,6 @@ class MainActivity : AppCompatActivity() {
         val filter = IntentFilter().apply {
             addAction("UPDATE_GUI")
             addAction("HIDE_MINI_PLAYER")
-            addAction("FINISH_APP")
         }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -113,12 +111,17 @@ class MainActivity : AppCompatActivity() {
         tvTotalTime = findViewById(R.id.tvTotalTime)
         rv = findViewById(R.id.recyclerViewMusic)
         rv.layoutManager = LinearLayoutManager(this)
+        
+        // Awal buka aplikasi, sembunyiin dulu setannya!
+        miniPlayer.visibility = View.GONE
     }
 
     private fun setupListeners() {
         btnPlayPause.setOnClickListener { musicService?.togglePlay() }
         btnCloseMini.setOnClickListener {
-            val stopIntent = Intent(this, MusicService::class.java).apply { action = MusicService.ACTION_STOP }
+            val stopIntent = Intent(this, MusicService::class.java).apply { 
+                action = MusicService.ACTION_STOP 
+            }
             startService(stopIntent)
         }
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -136,15 +139,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateUIFromService() {
         musicService?.let { service ->
+            // Cek index: Kalau -1 berarti belum ada lagu yang diputar
+            if (service.currentIndex == -1) {
+                miniPlayer.visibility = View.GONE
+                return
+            }
+
             val playing = service.isPlaying()
             val title = service.getCurrentTitle()
             val art = service.getAlbumArt()
 
-            // PAKAI ICON LU
             btnPlayPause.setImageResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play)
             miniTitle.text = title ?: "No Song"
             miniTitle.isSelected = true 
-            miniPlayer.visibility = View.VISIBLE
+            miniPlayer.visibility = View.VISIBLE // Muncul kalau lagu valid
 
             if (art != null) {
                 miniCover.setImageBitmap(art)
@@ -163,7 +171,7 @@ class MainActivity : AppCompatActivity() {
                 root?.listFiles()?.forEach { file ->
                     val name = file.name ?: ""
                     if (name.endsWith(".mp3", true) || name.endsWith(".m4a", true)) {
-                        list.add(Triple(name, "Tap to play", file.uri))
+                        list.add(Triple(name, "Audio File", file.uri))
                     }
                 }
             } catch (e: Exception) { e.printStackTrace() }
@@ -171,7 +179,6 @@ class MainActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 loadingAnim.visibility = View.GONE
                 musicService?.setList(list)
-                // Pastiin SongAdapter lu udah bener
                 rv.adapter = SongAdapter(this@MainActivity, list) { _, _, songUri ->
                     val index = list.indexOfFirst { it.third == songUri }
                     musicService?.playMusic(index)
@@ -185,13 +192,15 @@ class MainActivity : AppCompatActivity() {
             override fun run() {
                 musicService?.let { service ->
                     try {
-                        val current = service.getCurrentPos()
-                        val duration = service.getDuration()
-                        if (duration > 0) {
-                            seekBar.max = duration
-                            seekBar.progress = current
-                            tvCurrentTime.text = formatTime(current)
-                            tvTotalTime.text = formatTime(duration)
+                        if (service.isPlaying()) {
+                            val current = service.getCurrentPos()
+                            val duration = service.getDuration()
+                            if (duration > 0) {
+                                seekBar.max = duration
+                                seekBar.progress = current
+                                tvCurrentTime.text = formatTime(current)
+                                tvTotalTime.text = formatTime(duration)
+                            }
                         }
                     } catch (e: Exception) { }
                 }

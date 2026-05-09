@@ -1,6 +1,7 @@
 package com.mymusic.muy
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.view.*
@@ -9,7 +10,6 @@ import android.widget.*
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 
 class SongAdapter(
     private val ctx: Context,
@@ -23,38 +23,54 @@ class SongAdapter(
         val artist: TextView = v.findViewById(R.id.txtArtist)
     }
 
-    override fun onCreateViewHolder(p: ViewGroup, t: Int) = 
-        VH(LayoutInflater.from(ctx).inflate(R.layout.item_song, p, false))
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        return VH(LayoutInflater.from(ctx).inflate(R.layout.item_song, parent, false))
+    }
 
     override fun onBindViewHolder(h: VH, p: Int) {
-        val (t, a, u) = songs[p]
-        h.title.text = t
-        h.artist.text = a
+        val (title, artist, uri) = songs[p]
 
-        // AMBIL DATA DI BACKGROUND SUPAYA GAK LAG
-        // Kita pake format RGB_565 biar RAM lu lega banget
-        Glide.with(ctx)
-            .asBitmap()
-            .load(u) 
-            .override(100, 100) // Kompres abis ke 100px (pas buat layout 50dp lu)
-            .thumbnail(0.1f)
-            .placeholder(android.R.drawable.ic_media_play)
-            .error(android.R.drawable.ic_media_play)
-            .diskCacheStrategy(DiskCacheStrategy.RESOURCE) // Cache hasil kompresinya aja
-            .centerCrop()
-            .into(h.img)
+        h.title.text = title
+        h.artist.text = artist
 
-        // ANIMASI MODERN (Smooth & Reusable)
+        loadCover(uri, h.img)
+
         h.itemView.alpha = 0f
         h.itemView.translationY = 40f
         h.itemView.animate()
             .alpha(1f)
             .translationY(0f)
+            .setDuration(350)
             .setInterpolator(DecelerateInterpolator())
-            .setDuration(450)
             .start()
 
-        h.itemView.setOnClickListener { onClick(t, a, u) }
+        h.itemView.setOnClickListener {
+            onClick(title, artist, uri)
+        }
+    }
+
+    private fun loadCover(uri: Uri, img: ImageView) {
+        try {
+            val mmr = MediaMetadataRetriever()
+            mmr.setDataSource(ctx, uri)
+
+            val art = mmr.embeddedPicture
+            mmr.release()
+
+            if (art != null) {
+                Glide.with(ctx)
+                    .load(art)
+                    .override(120, 120)
+                    .centerCrop()
+                    .diskCacheStrategy(DiskCacheStrategy.ALL)
+                    .into(img)
+            } else {
+                img.setImageResource(android.R.drawable.ic_media_play)
+            }
+
+        } catch (e: Exception) {
+            img.setImageResource(android.R.drawable.ic_media_play)
+        }
     }
 
     override fun getItemCount() = songs.size

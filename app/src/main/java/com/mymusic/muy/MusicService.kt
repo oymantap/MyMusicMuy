@@ -225,15 +225,22 @@ class MusicService : Service() {
         stopEverything()
     }
 
-    private fun stopEverything() {
-        mediaPlayer?.stop()
-        mediaPlayer?.release()
-        mediaPlayer = null
+private fun stopEverything() {
+    mediaPlayer?.stop()
+    mediaPlayer?.release()
+    mediaPlayer = null
+    currentIndex = -1 // Reset index biar UI tahu gak ada lagu lagi
+    
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        stopForeground(STOP_FOREGROUND_REMOVE)
+    } else {
         stopForeground(true)
-        stopSelf()
-        sendBroadcast(Intent("HIDE_MINI_PLAYER"))
-        sendBroadcast(Intent("FINISH_APP"))
     }
+    
+    stopSelf()
+    sendBroadcast(Intent("HIDE_MINI_PLAYER"))
+    // sendBroadcast(Intent("FINISH_APP")) <--- HAPUS ATAU KOMEN BARIS INI SETAN!
+}
 
     override fun onDestroy() {
         mediaSession.release()
