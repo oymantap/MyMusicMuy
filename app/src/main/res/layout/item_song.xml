@@ -20,15 +20,19 @@
         android:layout_marginStart="12dp"
         android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/txtTitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+<TextView
+    android:id="@+id/txtTitle"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:ellipsize="marquee"
+    android:marqueeRepeatLimit="marquee_forever"
+    android:singleLine="true"
+    android:scrollHorizontally="true"
+    android:focusable="true"
+    android:focusableInTouchMode="true"
+    android:textColor="#FFFFFF"
+    android:textSize="16sp"
+    android:textStyle="bold" />
 
         <TextView
             android:id="@+id/txtArtist"
