@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rootFSP"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:keepScreenOn="true">
+
+    <!-- ViewPager2: Tempat buat swipe Cover (Kiri) dan Lirik (Kanan) -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/viewPagerFSP"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@+id/controllerLayout" />
+
+    <!-- Area Kontrol Bawah -->
+    <LinearLayout
+        android:id="@+id/controllerLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:background="@drawable/bg_gradient_black"> <!-- Bikin gradient biar teks kebaca -->
+
+        <TextView
+            android:id="@+id/fspTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="marquee"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:marqueeRepeatLimit="marquee_forever"
+            android:scrollHorizontally="true"
+            android:singleLine="true"
+            android:text="Memuat Judul..."
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:gravity="center" />
+
+        <SeekBar
+            android:id="@+id/fspSeekBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:progressTint="#FFFFFF"
+            android:thumbTint="#FFFFFF" />
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp">
+
+            <ImageButton
+                android:id="@+id/fspPrev"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_toStartOf="@+id/fspPlayPause"
+                android:layout_marginEnd="30dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_prev"
+                android:scaleType="fitCenter"
+                android:tint="#FFFFFF" />
+
+            <ImageButton
+                android:id="@+id/fspPlayPause"
+                android:layout_width="65dp"
+                android:layout_height="65dp"
+                android:layout_centerInParent="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_play"
+                android:scaleType="fitCenter"
+                android:tint="#FFFFFF" />
+
+            <ImageButton
+                android:id="@+id/fspNext"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_toEndOf="@+id/fspPlayPause"
+                android:layout_marginStart="30dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_next"
+                android:scaleType="fitCenter"
+                android:tint="#FFFFFF" />
+
+        </RelativeLayout>
+    </LinearLayout>
+
+</RelativeLayout>
