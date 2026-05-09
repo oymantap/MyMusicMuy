@@ -118,10 +118,12 @@ class MainActivity : AppCompatActivity() {
     private fun setupListeners() {
         btnPlayPause.setOnClickListener { musicService?.togglePlay() }
         
-        // PINTU KE FULL SCREEN PLAYER (FSP)
+        // PINTU KE FULL SCREEN PLAYER (FSP) - FIX BIAR GAK MENTAL
         miniPlayer.setOnClickListener {
-            if (musicService != null && musicService!!.currentIndex != -1) {
+            val service = musicService
+            if (service != null && service.currentIndex != -1) {
                 val intent = Intent(this, FullScreenPlayerActivity::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 startActivity(intent)
             }
         }

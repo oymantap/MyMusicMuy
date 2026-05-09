@@ -16,7 +16,6 @@ class FullScreenPlayerActivity : AppCompatActivity() {
     private lateinit var viewPager: ViewPager2
     private lateinit var txtTitle: TextView
     private lateinit var txtArtist: TextView
-    private lateinit var btnPlayPause: ImageButton
     private lateinit var btnPlayPauseInner: ImageButton
     private lateinit var seekBar: SeekBar
     private lateinit var tvCurrentTime: TextView
@@ -43,7 +42,7 @@ class FullScreenPlayerActivity : AppCompatActivity() {
         initViews()
         setupListeners()
 
-        // Setup ViewPager dengan Adapter (Isinya CoverFragment & LyricsFragment)
+        // Setup ViewPager dengan Adapter
         viewPager.adapter = FspAdapter(this)
 
         val intent = Intent(this, MusicService::class.java)
@@ -58,8 +57,8 @@ class FullScreenPlayerActivity : AppCompatActivity() {
         txtTitle = findViewById(R.id.fspTitle)
         txtArtist = findViewById(R.id.fspArtist)
         
-        btnPlayPause = findViewById(R.id.fspPlayPause) 
-        btnPlayPauseInner = findViewById(R.id.btnPlayPauseInner) ?: btnPlayPause
+        // Lu manggil Button yang ada di dalem FrameLayout
+        btnPlayPauseInner = findViewById(R.id.btnPlayPauseInner)
         
         seekBar = findViewById(R.id.fspSeekBar)
         tvCurrentTime = findViewById(R.id.tvCurrentTime)
@@ -71,20 +70,20 @@ class FullScreenPlayerActivity : AppCompatActivity() {
             musicService?.togglePlay()
             updateUI()
         }
-        btnPlayPause.setOnClickListener(playAction)
+        
         btnPlayPauseInner.setOnClickListener(playAction)
 
-        // DISINI PERBAIKANNYA: Panggil fungsi yang ada di MusicService lu
         findViewById<ImageButton>(R.id.fspPrev).setOnClickListener {
             musicService?.playPrevious() 
             updateUI()
         }
+        
         findViewById<ImageButton>(R.id.fspNext).setOnClickListener {
             musicService?.playNext()
             updateUI()
         }
         
-        findViewById<ImageButton>(R.id.btnCloseFSP)?.setOnClickListener {
+        findViewById<ImageButton>(R.id.btnCloseFSP).setOnClickListener {
             finish()
         }
 
@@ -118,14 +117,17 @@ class FullScreenPlayerActivity : AppCompatActivity() {
                 Palette.from(art).generate { palette ->
                     val color = palette?.getDominantColor(Color.parseColor("#121212")) ?: Color.BLACK
                     rootLayout.setBackgroundColor(color)
+                    
+                    // Update Blur Bg kalo ada
+                    findViewById<ImageView>(R.id.fspBlurBg)?.setImageBitmap(art)
                 }
             } else {
                 rootLayout.setBackgroundColor(Color.parseColor("#121212"))
+                findViewById<ImageView>(R.id.fspBlurBg)?.setImageDrawable(null)
             }
             
             val isPlaying = service.isPlaying()
             val icon = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
-            btnPlayPause.setImageResource(icon)
             btnPlayPauseInner.setImageResource(icon)
 
             val current = service.getCurrentPos()
@@ -144,7 +146,6 @@ class FullScreenPlayerActivity : AppCompatActivity() {
             override fun run() {
                 if (isBound) {
                     updateUI()
-                    // Re-sync seekbar tiap detik
                 }
                 handler.postDelayed(this, 1000)
             }
