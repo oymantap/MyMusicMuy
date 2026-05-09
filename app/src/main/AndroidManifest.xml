@@ -1,15 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"> <!-- Tambahin ini buat proteksi merger -->
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Ijin buat Android lama (12 kebawah) -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-    
-    <!-- Ijin buat Android baru (13 keatas) -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    
-    <!-- Ijin Service (Wajib buat Android 14+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
@@ -19,19 +14,15 @@
         android:label="MyMusic Muy"
         android:requestLegacyExternalStorage="true"
         android:theme="@style/Theme.MyMusicMuy"
-        tools:targetApi="35"> <!-- Kasih tau sistem kita siap buat Android 15 -->
+        tools:targetApi="35">
 
         <activity 
             android:name=".MainActivity" 
             android:exported="true">
-            
-            <!-- Filter Utama buat Launch App -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
-            <!-- INI DIA: Biar Firebase Test Lab gak bacot lagi -->
             <intent-filter>
                 <action android:name="com.google.intent.action.TEST_LOOP" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -39,12 +30,11 @@
             </intent-filter>
         </activity>
 
-        <!-- ACTIVITY BARU: Full Screen Player (FSP) -->
         <activity 
             android:name=".FullScreenPlayerActivity"
             android:exported="false"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.MyMusicMuy.NoActionBar"> <!-- Biasanya FSP gak pake ActionBar -->
+            android:theme="@style/Theme.MyMusicMuy.NoActionBar">
         </activity>
 
         <service 
@@ -52,7 +42,7 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback"
-            tools:node="replace"> <!-- Mastiin type mediaPlayback gak ketiban library lain -->
+            tools:node="replace">
         </service>
 
     </application>
