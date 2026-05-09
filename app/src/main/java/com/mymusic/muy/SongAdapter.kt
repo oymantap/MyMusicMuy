@@ -1,6 +1,7 @@
 package com.mymusic.muy
 
 import android.content.Context
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.view.*
 import android.view.animation.DecelerateInterpolator
@@ -8,8 +9,6 @@ import android.widget.*
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
-import com.bumptech.glide.request.RequestOptions
 
 class SongAdapter(
     private val ctx: Context,
@@ -31,32 +30,44 @@ class SongAdapter(
         h.title.text = t
         h.artist.text = a
 
-        // 1. LOAD COVER DENGAN KOMPRESI & CACHE AGRESSIVE
-        val requestOptions = RequestOptions()
-            .diskCacheStrategy(DiskCacheStrategy.ALL) // Simpan hasil kompresi di disk
-            .override(150, 150) // KOMPRES: Paksa gambar jadi kecil (150px) biar RAM enteng
-            .centerCrop()
+        // CARA KERAS: Ambil byte gambar, kompres, lalu kasih ke Glide
+        val imageBytes = getSongThumbnail(u)
+        
+        Glide.with(ctx)
+            .asBitmap()
+            .load(imageBytes) // Load dari byte yang udah diekstrak
+            .override(150, 150) // KOMPRES: Paksa kecil biar scroll gak lag
             .placeholder(android.R.drawable.ic_media_play)
             .error(android.R.drawable.ic_media_play)
-
-        Glide.with(ctx)
-            .load(u) // Masukkan URI lagu (Glide pinter, dia bakal cari metadata)
-            .apply(requestOptions)
-            .transition(DrawableTransitionOptions.withCrossFade()) // Efek muncul halus
+            .diskCacheStrategy(DiskCacheStrategy.ALL) // CACHE: Biar gak ekstrak ulang
+            .centerCrop()
             .into(h.img)
 
-        // 2. ANIMASI SMOOTH (Bukan kaku sekali jalan)
-        h.itemView.translationY = 100f
+        // ANIMASI SMOOTH (Bukan sekali jalan, tapi ngikutin arus scroll)
         h.itemView.alpha = 0f
+        h.itemView.translationY = 50f
         h.itemView.animate()
-            .translationY(0f)
             .alpha(1f)
-            .setInterpolator(DecelerateInterpolator()) // Makin lama makin pelan (Smooth)
-            .setDuration(500)
+            .translationY(0f)
+            .setInterpolator(DecelerateInterpolator())
+            .setDuration(400)
             .start()
 
         h.itemView.setOnClickListener { onClick(t, a, u) }
     }
 
     override fun getItemCount() = songs.size
+
+    // Fungsi ekstraksi byte gambar biar Glide gak kerja sendirian
+    private fun getSongThumbnail(uri: Uri): ByteArray? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(ctx, uri)
+            retriever.embeddedPicture
+        } catch (e: Exception) {
+            null
+        } finally {
+            retriever.release()
+        }
+    }
 }
