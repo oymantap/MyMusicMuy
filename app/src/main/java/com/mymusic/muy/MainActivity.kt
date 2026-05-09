@@ -166,6 +166,8 @@ class MainActivity : AppCompatActivity() {
             
             miniPlayer.visibility = View.VISIBLE
 
+            // RESET gambar dulu biar gak nempel cover sebelumnya
+            miniCover.setImageDrawable(null)
             if (art != null) {
                 miniCover.setImageBitmap(art)
             } else {
@@ -178,7 +180,6 @@ private fun loadSongs(uri: Uri) {
     loadingAnim.visibility = View.VISIBLE
     lifecycleScope.launch(Dispatchers.IO) {
         val list = mutableListOf<Triple<String, String, Uri>>()
-        val mmr = MediaMetadataRetriever()
         
         val supportedExtensions = listOf(".mp3", ".m4a", ".wav", ".flac", ".ogg", ".aac", ".ts", ".mid", ".xmf", ".ota", ".opus")
 
@@ -191,6 +192,7 @@ private fun loadSongs(uri: Uri) {
                               file.type?.startsWith("audio/") == true
 
                 if (isAudio) {
+                    val mmr = MediaMetadataRetriever()
                     try {
                         mmr.setDataSource(this@MainActivity, file.uri)
                         
@@ -205,13 +207,13 @@ private fun loadSongs(uri: Uri) {
                     } catch (e: Exception) {
                         val fallbackTitle = file.name?.substringBeforeLast(".") ?: "Unknown"
                         list.add(Triple(fallbackTitle, "Unknown Artist", file.uri))
+                    } finally {
+                        try { mmr.release() } catch (e: Exception) {}
                     }
                 }
             }
         } catch (e: Exception) { 
             e.printStackTrace() 
-        } finally { 
-            try { mmr.release() } catch (e: Exception) {} 
         }
 
         withContext(Dispatchers.Main) {
