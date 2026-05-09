@@ -1,23 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"> <!-- Tambahin ini buat proteksi merger -->
 
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <!-- Ijin buat Android lama (12 kebawah) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    
+    <!-- Ijin buat Android baru (13 keatas) -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    
+    <!-- Ijin Service (Wajib buat Android 14+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="MyMusic Muy"
         android:requestLegacyExternalStorage="true"
-        android:theme="@style/Theme.MyMusicMuy">
+        android:theme="@style/Theme.MyMusicMuy"
+        tools:targetApi="35"> <!-- Kasih tau sistem kita siap buat Android 15 -->
 
-        <activity android:name=".MainActivity" android:exported="true">
+        <activity 
+            android:name=".MainActivity" 
+            android:exported="true">
+            
+            <!-- Filter Utama buat Launch App -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- INI DIA: Biar Firebase Test Lab gak bacot lagi -->
+            <intent-filter>
+                <action android:name="com.google.intent.action.TEST_LOOP" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/javascript" />
             </intent-filter>
         </activity>
 
@@ -25,6 +43,9 @@
             android:name=".MusicService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="mediaPlayback"
+            tools:node="replace"> <!-- Mastiin type mediaPlayback gak ketiban library lain -->
+        </service>
+
     </application>
 </manifest>
