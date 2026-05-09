@@ -35,7 +35,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvTotalTime: TextView
     private val handler = Handler(Looper.getMainLooper())
 
-    // 1. Dapatkan izin yang benar berdasarkan versi Android
     private fun getRequiredPermissions(): Array<String> {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             arrayOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
@@ -48,17 +47,19 @@ class MainActivity : AppCompatActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 "UPDATE_GUI" -> {
-                    val isPlaying = intent.getBooleanExtra("isPlaying", false)
+                    val playing = intent.getBooleanExtra("isPlaying", false)
                     val title = intent.getStringExtra("title")
                     val uriStr = intent.getStringExtra("uri")
                     
-                    btnPlayPause.setImageResource(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
+                    btnPlayPause.setImageResource(if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
                     miniTitle.text = title ?: "Unknown"
                     miniTitle.isSelected = true 
                     miniPlayer.visibility = View.VISIBLE
                     uriStr?.let { 
-                        // Update cover pake Glide langsung (Gak usah pake MMR manual di sini!)
-                        Glide.with(this@MainActivity).load(Uri.parse(it)).error(R.drawable.ic_play).into(miniCover)
+                        Glide.with(this@MainActivity)
+                            .load(Uri.parse(it))
+                            .error(android.R.drawable.ic_media_play)
+                            .into(miniCover)
                     }
                 }
                 "HIDE_MINI_PLAYER" -> miniPlayer.visibility = View.GONE
@@ -69,19 +70,22 @@ class MainActivity : AppCompatActivity() {
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            musicService = (service as MusicService.MusicBinder).getService()
+            val binder = service as MusicService.MusicBinder
+            musicService = binder.getService()
             isBound = true
             val prefs = getSharedPreferences("MusicPrefs", MODE_PRIVATE)
             prefs.getString("last_folder", null)?.let { loadSongs(Uri.parse(it)) }
         }
-        override fun onServiceDisconnected(p0: ComponentName?) { isBound = false }
+        override fun onServiceDisconnected(p0: ComponentName?) { 
+            isBound = false 
+            musicService = null
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // 2. CEK IZIN SAAT STARTUP (WAJIB BUAT ANDROID 13+)
         val permissionsToRequest = getRequiredPermissions().filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
@@ -97,7 +101,13 @@ class MainActivity : AppCompatActivity() {
             addAction("HIDE_MINI_PLAYER")
             addAction("FINISH_APP")
         }
-        registerReceiver(guiReceiver, filter, Context.RECEIVER_EXPORTED) // Tambah flag exported
+        
+        // FIX ANR: Gunakan flag RECEIVER_EXPORTED hanya jika Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(guiReceiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(guiReceiver, filter)
+        }
 
         val intent = Intent(this, MusicService::class.java)
         startService(intent)
@@ -122,7 +132,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupListeners() {
         btnPlayPause.setOnClickListener { musicService?.togglePlay() }
         btnCloseMini.setOnClickListener {
-            val stopIntent = Intent(this, MusicService::class.java).apply { action = MusicService.ACTION_STOP }
+            val stopIntent = Intent(this, MusicService::class.java).apply { action = "STOP" }
             startService(stopIntent)
         }
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -138,7 +148,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // 3. LOAD SONGS YANG RINGAN (GAK PAKE MMR DI LOOPING!)
     private fun loadSongs(uri: Uri) {
         loadingAnim.visibility = View.VISIBLE
         lifecycleScope.launch(Dispatchers.IO) {
@@ -148,8 +157,6 @@ class MainActivity : AppCompatActivity() {
                 root?.listFiles()?.forEach { file ->
                     val name = file.name ?: ""
                     if (name.endsWith(".mp3", true) || name.endsWith(".m4a", true)) {
-                        // Jangan panggil MMR di sini! Biar Adapter yang urus metadatanya.
-                        // Ini biar loading-nya secepat kilat.
                         list.add(Triple(name, "Tap to play", file.uri))
                     }
                 }
@@ -169,15 +176,18 @@ class MainActivity : AppCompatActivity() {
     private fun startSeekBarUpdate() {
         handler.post(object : Runnable {
             override fun run() {
-                musicService?.let {
-                    if (it.mediaPlayer != null && it.isPlaying()) {
-                        val current = it.getCurrentPos()
-                        val duration = it.getDuration()
-                        seekBar.max = duration
-                        seekBar.progress = current
-                        tvCurrentTime.text = formatTime(current)
-                        tvTotalTime.text = formatTime(duration)
-                    }
+                // FIX ACTIONS ERROR: Cek status isPlaying lewat service secara aman
+                musicService?.let { service ->
+                    try {
+                        val current = service.getCurrentPos()
+                        val duration = service.getDuration()
+                        if (duration > 0) {
+                            seekBar.max = duration
+                            seekBar.progress = current
+                            tvCurrentTime.text = formatTime(current)
+                            tvTotalTime.text = formatTime(duration)
+                        }
+                    } catch (e: Exception) { }
                 }
                 handler.postDelayed(this, 1000)
             }

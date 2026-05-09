@@ -26,7 +26,6 @@ class MusicService : Service() {
     var songList = mutableListOf<Triple<String, String, Uri>>()
     var currentIndex = -1
 
-    // Listener buat Audio Focus (Biar gak tabrakan sama WA/Status)
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS -> if (mediaPlayer?.isPlaying == true) togglePlay()
@@ -54,6 +53,8 @@ class MusicService : Service() {
         }
     }
 
+    // --- FIX FOR GRADLE ACTIONS ERROR ---
+    fun isPlaying(): Boolean = mediaPlayer?.isPlaying ?: false
     fun getDuration(): Int = mediaPlayer?.duration ?: 0
     fun getCurrentPos(): Int = mediaPlayer?.currentPosition ?: 0
     fun seekTo(pos: Int) { mediaPlayer?.seekTo(pos) }
@@ -66,7 +67,6 @@ class MusicService : Service() {
     fun playMusic(index: Int) {
         if (index < 0 || index >= songList.size) return
         
-        // Minta izin Audio Focus sebelum putar lagu
         val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                 .setAudioAttributes(AudioAttributes.Builder()
@@ -78,6 +78,7 @@ class MusicService : Service() {
                 .build()
             audioManager.requestAudioFocus(focusRequest)
         } else {
+            @Suppress("DEPRECATION")
             audioManager.requestAudioFocus(audioFocusChangeListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
         }
 
@@ -162,29 +163,32 @@ class MusicService : Service() {
         val pNext = PendingIntent.getService(this, 1, Intent(this, MusicService::class.java).apply { action = ACTION_NEXT }, flag)
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_play)
+            .setSmallIcon(android.R.drawable.ic_media_play) // Pakai icon sistem biar aman
             .setContentTitle(title)
             .setContentText(artist)
             .setLargeIcon(mediaSession.controller.metadata?.getBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART))
-            // NOTIF BISA DIGESER KALU LAGU MATI/PAUSE
             .setOngoing(isPlaying) 
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setStyle(androidx.media.app.NotificationCompat.MediaStyle()
                 .setMediaSession(mediaSession.sessionToken)
                 .setShowActionsInCompactView(0, 1, 2))
-            .addAction(R.drawable.ic_prev, "Prev", pPrev)
-            .addAction(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play, "Toggle", pToggle)
-            .addAction(R.drawable.ic_next, "Next", pNext)
+            .addAction(android.R.drawable.ic_media_previous, "Prev", pPrev)
+            .addAction(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, "Toggle", pToggle)
+            .addAction(android.R.drawable.ic_media_next, "Next", pNext)
             .build()
 
-        // Jika lagu jalan, masuk foreground (gak bisa dihapus)
-        // Jika lagu pause, stop foreground tapi tetep tampilin notif (biar bisa di-swipe)
+        // --- FIX FOR ANDROID 14 (API 34) CRASH ---
         if (isPlaying) {
-            startForeground(1, notification)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            } else {
+                startForeground(1, notification)
+            }
         } else {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 stopForeground(STOP_FOREGROUND_DETACH)
             } else {
+                @Suppress("DEPRECATION")
                 stopForeground(false)
             }
             nm.notify(1, notification)
@@ -209,7 +213,6 @@ class MusicService : Service() {
         return START_STICKY
     }
 
-    // FITUR SWIPE TO KILL (Beneran close app dari recent)
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
         stopEverything()
