@@ -64,6 +64,8 @@ dependencies {
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
     implementation(libs.material)
+    implementation 'androidx.palette:palette-ktx:1.0.0'
+    implementation("androidx.viewpager2:viewpager2:1.1.0") // TAMBAH INI BUAT SWIPE
     
     // --- LIBRARY TAMBAHAN UNTUK FITUR MUSIK & GAMBAR ---
     // MediaSession & Kontrol Notifikasi[span_6](start_span)[span_6](end_span)[span_7](start_span)[span_7](end_span)
