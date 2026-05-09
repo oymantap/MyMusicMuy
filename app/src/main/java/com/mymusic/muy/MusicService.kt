@@ -57,11 +57,10 @@ class MusicService : Service() {
         }
     }
 
-    // --- DATA INTERFACE UNTUK MAIN ACTIVITY (FIX UNRESOLVED REFERENCE) ---
     fun isPlaying(): Boolean = mediaPlayer?.isPlaying ?: false
     fun getDuration(): Int = mediaPlayer?.duration ?: 0
     fun getCurrentPos(): Int = mediaPlayer?.currentPosition ?: 0
-    fun getAlbumArt(): Bitmap? = currentAlbumArt // Explicit return type Bitmap?
+    fun getAlbumArt(): Bitmap? = currentAlbumArt
     fun getCurrentTitle(): String? = if (currentIndex != -1) songList[currentIndex].first else null
     fun seekTo(pos: Int) { mediaPlayer?.seekTo(pos) }
 
@@ -129,7 +128,7 @@ class MusicService : Service() {
             .build())
 
         showNotification(title, artist, true)
-        updateActivityUI(true, title, uri)
+        updateActivityUI()
     }
 
     fun playNext() { if (songList.isNotEmpty()) playMusic((currentIndex + 1) % songList.size) }
@@ -147,7 +146,7 @@ class MusicService : Service() {
             val (t, a, u) = songList[currentIndex]
             updatePlaybackState(it.isPlaying)
             showNotification(t, a, it.isPlaying)
-            updateActivityUI(it.isPlaying, t, u)
+            updateActivityUI()
             return it.isPlaying
         }
         return false
@@ -176,7 +175,7 @@ class MusicService : Service() {
         val pNext = PendingIntent.getService(this, 1, Intent(this, MusicService::class.java).apply { action = ACTION_NEXT }, flag)
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_play)
+            .setSmallIcon(R.drawable.ic_play) // PAKAI ICON LU
             .setContentTitle(title)
             .setContentText(artist)
             .setLargeIcon(currentAlbumArt)
@@ -185,9 +184,9 @@ class MusicService : Service() {
             .setStyle(androidx.media.app.NotificationCompat.MediaStyle()
                 .setMediaSession(mediaSession.sessionToken)
                 .setShowActionsInCompactView(0, 1, 2))
-            .addAction(R.drawable.ic_prev, "Prev", pPrev)
-            .addAction(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play, "Toggle", pToggle)
-            .addAction(R.drawable.ic_next, "Next", pNext)
+            .addAction(R.drawable.ic_prev, "Prev", pPrev) // PAKAI ICON LU
+            .addAction(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play, "Toggle", pToggle) // PAKAI ICON LU
+            .addAction(R.drawable.ic_next, "Next", pNext) // PAKAI ICON LU
             .build()
 
         if (isPlaying) {
@@ -207,12 +206,8 @@ class MusicService : Service() {
         }
     }
 
-    private fun updateActivityUI(isPlaying: Boolean, title: String, uri: Uri) {
-        val intent = Intent("UPDATE_GUI")
-        intent.putExtra("isPlaying", isPlaying)
-        intent.putExtra("title", title)
-        intent.putExtra("uri", uri.toString())
-        sendBroadcast(intent)
+    private fun updateActivityUI() {
+        sendBroadcast(Intent("UPDATE_GUI"))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -237,6 +232,7 @@ class MusicService : Service() {
         stopForeground(true)
         stopSelf()
         sendBroadcast(Intent("HIDE_MINI_PLAYER"))
+        sendBroadcast(Intent("FINISH_APP"))
     }
 
     override fun onDestroy() {
