@@ -39,6 +39,14 @@
             </intent-filter>
         </activity>
 
+        <!-- ACTIVITY BARU: Full Screen Player (FSP) -->
+        <activity 
+            android:name=".FullScreenPlayerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MyMusicMuy.NoActionBar"> <!-- Biasanya FSP gak pake ActionBar -->
+        </activity>
+
         <service 
             android:name=".MusicService"
             android:enabled="true"
