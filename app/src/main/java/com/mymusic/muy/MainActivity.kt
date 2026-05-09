@@ -3,6 +3,7 @@ package com.mymusic.muy
 import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.*
 import android.view.View
@@ -14,7 +15,6 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -36,11 +36,15 @@ class MainActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
 
     private fun getRequiredPermissions(): Array<String> {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            arrayOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
+        // Support Android 13, 14, sampe 15
+        val permissions = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.READ_MEDIA_AUDIO)
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         } else {
-            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+            permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
+        return permissions.toTypedArray()
     }
 
     private val guiReceiver = object : BroadcastReceiver() {
@@ -49,17 +53,22 @@ class MainActivity : AppCompatActivity() {
                 "UPDATE_GUI" -> {
                     val playing = intent.getBooleanExtra("isPlaying", false)
                     val title = intent.getStringExtra("title")
-                    val uriStr = intent.getStringExtra("uri")
                     
+                    // UPDATE UI TANPA LOAD ULANG DARI URI
                     btnPlayPause.setImageResource(if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
                     miniTitle.text = title ?: "Unknown"
                     miniTitle.isSelected = true 
                     miniPlayer.visibility = View.VISIBLE
-                    uriStr?.let { 
-                        Glide.with(this@MainActivity)
-                            .load(Uri.parse(it))
-                            .error(android.R.drawable.ic_media_play)
-                            .into(miniCover)
+
+                    // AMBIL COVER LANGSUNG DARI SERVICE (Lewat MediaSession atau Binder)
+                    musicService?.let { service ->
+                        // Ambil Bitmap yang udah diekstrak sama Service tadi
+                        val cover = service.getAlbumArt() 
+                        if (cover != null) {
+                            miniCover.setImageBitmap(cover)
+                        } else {
+                            miniCover.setImageResource(android.R.drawable.ic_media_play)
+                        }
                     }
                 }
                 "HIDE_MINI_PLAYER" -> miniPlayer.visibility = View.GONE
@@ -73,6 +82,18 @@ class MainActivity : AppCompatActivity() {
             val binder = service as MusicService.MusicBinder
             musicService = binder.getService()
             isBound = true
+            
+            // Re-sync UI pas konek
+            if (musicService?.isPlaying() == true) {
+                miniPlayer.visibility = View.VISIBLE
+                // Trigger update manual buat sinkronin Cover & Title
+                val intentSync = Intent("UPDATE_GUI").apply {
+                    putExtra("isPlaying", true)
+                    putExtra("title", musicService?.getCurrentTitle())
+                }
+                sendBroadcast(intentSync)
+            }
+
             val prefs = getSharedPreferences("MusicPrefs", MODE_PRIVATE)
             prefs.getString("last_folder", null)?.let { loadSongs(Uri.parse(it)) }
         }
@@ -86,11 +107,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val permissionsToRequest = getRequiredPermissions().filter {
+        val permissions = getRequiredPermissions()
+        val notGranted = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
-        if (permissionsToRequest.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, permissionsToRequest.toTypedArray(), 100)
+        if (notGranted.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, notGranted.toTypedArray(), 100)
         }
 
         initViews()
@@ -102,7 +124,7 @@ class MainActivity : AppCompatActivity() {
             addAction("FINISH_APP")
         }
         
-        // FIX ANR: Gunakan flag RECEIVER_EXPORTED hanya jika Android 13+
+        // SUPPORT ANDROID 14+ (Flag Receiver)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(guiReceiver, filter, Context.RECEIVER_EXPORTED)
         } else {
@@ -110,7 +132,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val intent = Intent(this, MusicService::class.java)
-        startService(intent)
+        startForegroundService(intent) // Gunakan startForegroundService buat Android 8+
         bindService(intent, connection, BIND_AUTO_CREATE)
         startSeekBarUpdate()
     }
@@ -157,7 +179,7 @@ class MainActivity : AppCompatActivity() {
                 root?.listFiles()?.forEach { file ->
                     val name = file.name ?: ""
                     if (name.endsWith(".mp3", true) || name.endsWith(".m4a", true)) {
-                        list.add(Triple(name, "Tap to play", file.uri))
+                        list.add(Triple(name, "Audio File", file.uri))
                     }
                 }
             } catch (e: Exception) { e.printStackTrace() }
@@ -176,9 +198,8 @@ class MainActivity : AppCompatActivity() {
     private fun startSeekBarUpdate() {
         handler.post(object : Runnable {
             override fun run() {
-                // FIX ACTIONS ERROR: Cek status isPlaying lewat service secara aman
                 musicService?.let { service ->
-                    try {
+                    if (service.isPlaying()) {
                         val current = service.getCurrentPos()
                         val duration = service.getDuration()
                         if (duration > 0) {
@@ -187,7 +208,7 @@ class MainActivity : AppCompatActivity() {
                             tvCurrentTime.text = formatTime(current)
                             tvTotalTime.text = formatTime(duration)
                         }
-                    } catch (e: Exception) { }
+                    }
                 }
                 handler.postDelayed(this, 1000)
             }

@@ -17,6 +17,7 @@ import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import androidx.core.app.NotificationCompat
+import java.io.ByteArrayOutputStream
 
 class MusicService : Service() {
     var mediaPlayer: MediaPlayer? = null
@@ -25,6 +26,7 @@ class MusicService : Service() {
     private lateinit var audioManager: AudioManager
     var songList = mutableListOf<Triple<String, String, Uri>>()
     var currentIndex = -1
+    private var currentAlbumArt: Bitmap? = null
 
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
@@ -53,7 +55,6 @@ class MusicService : Service() {
         }
     }
 
-    // --- FIX FOR GRADLE ACTIONS ERROR ---
     fun isPlaying(): Boolean = mediaPlayer?.isPlaying ?: false
     fun getDuration(): Int = mediaPlayer?.duration ?: 0
     fun getCurrentPos(): Int = mediaPlayer?.currentPosition ?: 0
@@ -94,12 +95,42 @@ class MusicService : Service() {
                     start()
                     setOnCompletionListener { playNext() }
                 }
-                updateMetadata(title, artist, uri)
+                // Step 1: Ambil Metadata & Cover
+                extractMetadataAndNotify(title, artist, uri)
                 updatePlaybackState(true)
-                showNotification(title, artist, true)
-                updateActivityUI(true, title, uri)
             } catch (e: Exception) { e.printStackTrace() }
         }
+    }
+
+    // Step 2: Fungsi maut buat ambil info & sebar ke mana-mana
+    private fun extractMetadataAndNotify(title: String, artist: String, uri: Uri) {
+        val mmr = MediaMetadataRetriever()
+        currentAlbumArt = null
+        try {
+            mmr.setDataSource(this, uri)
+            val art = mmr.embeddedPicture
+            if (art != null) {
+                currentAlbumArt = BitmapFactory.decodeByteArray(art, 0, art.size)
+            }
+        } catch (e: Exception) { 
+            e.printStackTrace() 
+        } finally { 
+            mmr.release() 
+        }
+
+        // Update MediaSession (Buat Lockscreen)
+        mediaSession.setMetadata(MediaMetadataCompat.Builder()
+            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
+            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
+            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, mediaPlayer?.duration?.toLong() ?: 0L)
+            .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, currentAlbumArt)
+            .build())
+
+        // Kirim ke Notifikasi
+        showNotification(title, artist, true)
+        
+        // Kirim ke MainActivity
+        updateActivityUI(true, title, uri)
     }
 
     fun playNext() { if (songList.isNotEmpty()) playMusic((currentIndex + 1) % songList.size) }
@@ -134,23 +165,6 @@ class MusicService : Service() {
             .build())
     }
 
-    private fun updateMetadata(title: String, artist: String, uri: Uri) {
-        val mmr = MediaMetadataRetriever()
-        var bitmap: Bitmap? = null
-        try {
-            mmr.setDataSource(this, uri)
-            val art = mmr.embeddedPicture
-            if (art != null) bitmap = BitmapFactory.decodeByteArray(art, 0, art.size)
-        } catch (e: Exception) { } finally { mmr.release() }
-
-        mediaSession.setMetadata(MediaMetadataCompat.Builder()
-            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
-            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
-            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, mediaPlayer?.duration?.toLong() ?: 0L)
-            .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, bitmap)
-            .build())
-    }
-
     private fun showNotification(title: String, artist: String, isPlaying: Boolean) {
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -163,10 +177,10 @@ class MusicService : Service() {
         val pNext = PendingIntent.getService(this, 1, Intent(this, MusicService::class.java).apply { action = ACTION_NEXT }, flag)
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_media_play) // Pakai icon sistem biar aman
+            .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle(title)
             .setContentText(artist)
-            .setLargeIcon(mediaSession.controller.metadata?.getBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART))
+            .setLargeIcon(currentAlbumArt) // Ambil dari variabel global yang udah di-extract
             .setOngoing(isPlaying) 
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setStyle(androidx.media.app.NotificationCompat.MediaStyle()
@@ -177,7 +191,6 @@ class MusicService : Service() {
             .addAction(android.R.drawable.ic_media_next, "Next", pNext)
             .build()
 
-        // --- FIX FOR ANDROID 14 (API 34) CRASH ---
         if (isPlaying) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
@@ -196,11 +209,14 @@ class MusicService : Service() {
     }
 
     private fun updateActivityUI(isPlaying: Boolean, title: String, uri: Uri) {
-        sendBroadcast(Intent("UPDATE_GUI").apply {
-            putExtra("isPlaying", isPlaying)
-            putExtra("title", title)
-            putExtra("uri", uri.toString())
-        })
+        val intent = Intent("UPDATE_GUI")
+        intent.putExtra("isPlaying", isPlaying)
+        intent.putExtra("title", title)
+        intent.putExtra("uri", uri.toString())
+        
+        // Bonus: Kalau mau kirim Bitmap langsung via broadcast emang berat, 
+        // tapi mending UI ambil dari URI aja karena Glide udah punya cache super kenceng.
+        sendBroadcast(intent)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
