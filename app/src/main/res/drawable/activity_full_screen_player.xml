@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/rootFSP"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#1A1A1A"
+    android:keepScreenOn="true">
+
+    <!-- Background Blur Effect (Placeholder) -->
+    <ImageView
+        android:id="@+id/fspBlurBg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:alpha="0.3" />
+
+    <!-- Top Bar: Back, Tab Selector, More -->
+    <RelativeLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:paddingHorizontal="16dp">
+
+        <ImageButton
+            android:id="@+id/btnCloseFSP"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_centerVertical="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_play"
+            android:rotation="90"
+            app:tint="#FFFFFF" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_centerInParent="true"
+            android:background="#33FFFFFF"
+            android:backgroundTint="#33FFFFFF"
+            android:padding="2dp"
+            android:orientation="horizontal">
+            <!-- Lu bisa bungkus ini pake CardView buat radius bulet -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:paddingHorizontal="16dp"
+                android:gravity="center"
+                android:text="SAMPUL"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:background="#4DFFFFFF"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:paddingHorizontal="16dp"
+                android:gravity="center"
+                android:text="LIRIK"
+                android:textColor="#80FFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold"/>
+        </LinearLayout>
+
+        <ImageButton
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_play"
+            app:tint="#FFFFFF" />
+    </RelativeLayout>
+
+    <!-- Konten Utama (Swipeable) -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/viewPagerFSP"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/topBar"
+        android:layout_above="@+id/infoLayout" />
+
+    <!-- Info Judul & Artist (Nyatu sama background) -->
+    <LinearLayout
+        android:id="@+id/infoLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/seekLayout"
+        android:orientation="horizontal"
+        android:paddingHorizontal="24dp"
+        android:gravity="center_vertical">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/fspTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Judul Lagu"
+                android:textColor="#FFFFFF"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:ellipsize="end"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/fspArtist"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Nama Artis"
+                android:textColor="#B3FFFFFF"
+                android:textSize="16sp" />
+        </LinearLayout>
+
+        <ImageButton
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_play"
+            app:tint="#FFFFFF"
+            android:layout_marginEnd="8dp"/>
+        
+        <ImageButton
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_play"
+            app:tint="#FFFFFF" />
+    </LinearLayout>
+
+    <!-- SeekBar Layout -->
+    <LinearLayout
+        android:id="@+id/seekLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/controls"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:layout_marginBottom="16dp">
+        
+        <SeekBar
+            android:id="@+id/fspSeekBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:progressTint="#FFFFFF"
+            android:thumbTint="#FFFFFF" />
+            
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="12dp">
+            <TextView
+                android:id="@+id/tvCurrentTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="00:00"
+                android:textColor="#80FFFFFF"
+                android:textSize="12sp" />
+            <TextView
+                android:id="@+id/tvTotalTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:text="00:00"
+                android:textColor="#80FFFFFF"
+                android:textSize="12sp" />
+        </RelativeLayout>
+    </LinearLayout>
+
+    <!-- Main Controls Area -->
+    <RelativeLayout
+        android:id="@+id/controls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:paddingBottom="40dp"
+        android:paddingHorizontal="24dp">
+
+        <ImageButton
+            android:id="@+id/fspShuffle"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_centerVertical="true"
+            android:layout_alignParentStart="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_play"
+            app:tint="#80FFFFFF" />
+
+        <ImageButton
+            android:id="@+id/fspPrev"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_centerVertical="true"
+            android:layout_toStartOf="@+id/fspPlayPause"
+            android:layout_marginEnd="20dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_prev"
+            android:scaleType="fitCenter" />
+
+        <FrameLayout
+            android:id="@+id/fspPlayPause"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_centerInParent="true"
+            android:background="@android:color/transparent">
+            <!-- Lu bisa kasih background bulet di sini kalo mau -->
+            <ImageButton
+                android:id="@+id/btnPlayPauseInner"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_play"
+                android:scaleType="fitCenter" />
+        </FrameLayout>
+
+        <ImageButton
+            android:id="@+id/fspNext"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_centerVertical="true"
+            android:layout_toEndOf="@+id/fspPlayPause"
+            android:layout_marginStart="20dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_next"
+            android:scaleType="fitCenter" />
+
+        <ImageButton
+            android:id="@+id/fspRepeat"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_centerVertical="true"
+            android:layout_alignParentEnd="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_play"
+            app:tint="#80FFFFFF" />
+    </RelativeLayout>
+
+</RelativeLayout>
