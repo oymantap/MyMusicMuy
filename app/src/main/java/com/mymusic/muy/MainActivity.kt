@@ -3,6 +3,7 @@ package com.mymusic.muy
 import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.*
 import android.view.View
@@ -47,7 +48,6 @@ class MainActivity : AppCompatActivity() {
             when (intent?.action) {
                 "UPDATE_GUI" -> updateUIFromService()
                 "HIDE_MINI_PLAYER" -> miniPlayer.visibility = View.GONE
-                // FINISH_APP dibuang biar gak close app sembarangan
             }
         }
     }
@@ -112,7 +112,6 @@ class MainActivity : AppCompatActivity() {
         rv = findViewById(R.id.recyclerViewMusic)
         rv.layoutManager = LinearLayoutManager(this)
         
-        // Awal buka aplikasi, sembunyiin dulu setannya!
         miniPlayer.visibility = View.GONE
     }
 
@@ -139,7 +138,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateUIFromService() {
         musicService?.let { service ->
-            // Cek index: Kalau -1 berarti belum ada lagu yang diputar
             if (service.currentIndex == -1) {
                 miniPlayer.visibility = View.GONE
                 return
@@ -152,7 +150,7 @@ class MainActivity : AppCompatActivity() {
             btnPlayPause.setImageResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play)
             miniTitle.text = title ?: "No Song"
             miniTitle.isSelected = true 
-            miniPlayer.visibility = View.VISIBLE // Muncul kalau lagu valid
+            miniPlayer.visibility = View.VISIBLE
 
             if (art != null) {
                 miniCover.setImageBitmap(art)
@@ -162,30 +160,59 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadSongs(uri: Uri) {
-        loadingAnim.visibility = View.VISIBLE
-        lifecycleScope.launch(Dispatchers.IO) {
-            val list = mutableListOf<Triple<String, String, Uri>>()
-            try {
-                val root = DocumentFile.fromTreeUri(this@MainActivity, uri)
-                root?.listFiles()?.forEach { file ->
-                    val name = file.name ?: ""
-                    if (name.endsWith(".mp3", true) || name.endsWith(".m4a", true)) {
-                        list.add(Triple(name, "Audio File", file.uri))
+private fun loadSongs(uri: Uri) {
+    loadingAnim.visibility = View.VISIBLE
+    lifecycleScope.launch(Dispatchers.IO) {
+        val list = mutableListOf<Triple<String, String, Uri>>()
+        val mmr = MediaMetadataRetriever()
+        
+        // List format yang kita sikat (lebih lengkap)
+        val supportedExtensions = listOf(".mp3", ".m4a", ".wav", ".flac", ".ogg", ".aac", ".ts", ".mid", ".xmf", ".ota", ".opus")
+
+        try {
+            val root = DocumentFile.fromTreeUri(this@MainActivity, uri)
+            root?.listFiles()?.forEach { file ->
+                val fileName = file.name?.lowercase() ?: ""
+                
+                // Cek apakah file adalah audio berdasarkan ekstensi ATAU MimeType
+                val isAudio = supportedExtensions.any { fileName.endsWith(it) } || 
+                              file.type?.startsWith("audio/") == true
+
+                if (isAudio) {
+                    try {
+                        mmr.setDataSource(this@MainActivity, file.uri)
+                        
+                        val title = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) 
+                                    ?: file.name?.substringBeforeLast(".") // Nama file tanpa .mp3
+                                    ?: "Unknown Title"
+                                    
+                        val artist = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) 
+                                     ?: "Unknown Artist"
+                        
+                        list.add(Triple(title, artist, file.uri))
+                    } catch (e: Exception) {
+                        // Kalau metadata gagal (misal file .wav sering gak ada tag-nya), pake nama file
+                        val fallbackTitle = file.name?.substringBeforeLast(".") ?: "Unknown"
+                        list.add(Triple(fallbackTitle, "Unknown Artist", file.uri))
                     }
                 }
-            } catch (e: Exception) { e.printStackTrace() }
+            }
+        } catch (e: Exception) { 
+            e.printStackTrace() 
+        } finally { 
+            try { mmr.release() } catch (e: Exception) {} 
+        }
 
-            withContext(Dispatchers.Main) {
-                loadingAnim.visibility = View.GONE
-                musicService?.setList(list)
-                rv.adapter = SongAdapter(this@MainActivity, list) { _, _, songUri ->
-                    val index = list.indexOfFirst { it.third == songUri }
-                    musicService?.playMusic(index)
-                }
+        withContext(Dispatchers.Main) {
+            loadingAnim.visibility = View.GONE
+            musicService?.setList(list)
+            rv.adapter = SongAdapter(this@MainActivity, list) { _, _, songUri ->
+                val index = list.indexOfFirst { it.third == songUri }
+                musicService?.playMusic(index)
             }
         }
     }
+}
 
     private fun startSeekBarUpdate() {
         handler.post(object : Runnable {
