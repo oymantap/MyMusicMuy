@@ -1,242 +1,238 @@
 package com.mymusic.muy
 
-import android.Manifest
+import android.app.*
 import android.content.*
-import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.media.MediaMetadataRetriever
+import android.media.MediaPlayer
 import android.net.Uri
-import android.os.*
-import android.view.View
-import android.widget.*
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import androidx.documentfile.provider.DocumentFile
-import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import android.os.Binder
+import android.os.Build
+import android.os.IBinder
+import android.support.v4.media.MediaMetadataCompat
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
+import androidx.core.app.NotificationCompat
 
-class MainActivity : AppCompatActivity() {
-    private lateinit var rv: RecyclerView
-    private var musicService: MusicService? = null
-    private var isBound = false
-    private lateinit var miniPlayer: LinearLayout
-    private lateinit var btnPlayPause: ImageButton
-    private lateinit var btnCloseMini: ImageButton
-    private lateinit var miniTitle: TextView
-    private lateinit var miniCover: ImageView
-    private lateinit var loadingAnim: ProgressBar
-    
-    private lateinit var seekBar: SeekBar
-    private lateinit var tvCurrentTime: TextView
-    private lateinit var tvTotalTime: TextView
-    private val handler = Handler(Looper.getMainLooper())
+class MusicService : Service() {
+    var mediaPlayer: MediaPlayer? = null
+    private val binder = MusicBinder()
+    private lateinit var mediaSession: MediaSessionCompat
+    private lateinit var audioManager: AudioManager
+    var songList = mutableListOf<Triple<String, String, Uri>>()
+    var currentIndex = -1
+    private var currentAlbumArt: Bitmap? = null
 
-    private fun getRequiredPermissions(): Array<String> {
-        // Support Android 13, 14, sampe 15
-        val permissions = mutableListOf<String>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.READ_MEDIA_AUDIO)
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        } else {
-            permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
-        return permissions.toTypedArray()
-    }
-
-    private val guiReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            when (intent?.action) {
-                "UPDATE_GUI" -> {
-                    val playing = intent.getBooleanExtra("isPlaying", false)
-                    val title = intent.getStringExtra("title")
-                    
-                    // UPDATE UI TANPA LOAD ULANG DARI URI
-                    btnPlayPause.setImageResource(if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
-                    miniTitle.text = title ?: "Unknown"
-                    miniTitle.isSelected = true 
-                    miniPlayer.visibility = View.VISIBLE
-
-                    // AMBIL COVER LANGSUNG DARI SERVICE (Lewat MediaSession atau Binder)
-                    musicService?.let { service ->
-                        // Ambil Bitmap yang udah diekstrak sama Service tadi
-                        val cover = service.getAlbumArt() 
-                        if (cover != null) {
-                            miniCover.setImageBitmap(cover)
-                        } else {
-                            miniCover.setImageResource(android.R.drawable.ic_media_play)
-                        }
-                    }
-                }
-                "HIDE_MINI_PLAYER" -> miniPlayer.visibility = View.GONE
-                "FINISH_APP" -> finish()
-            }
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS -> if (mediaPlayer?.isPlaying == true) togglePlay()
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> if (mediaPlayer?.isPlaying == true) mediaPlayer?.pause()
+            AudioManager.AUDIOFOCUS_GAIN -> if (mediaPlayer != null && !mediaPlayer!!.isPlaying) mediaPlayer?.start()
         }
     }
 
-    private val connection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            val binder = service as MusicService.MusicBinder
-            musicService = binder.getService()
-            isBound = true
-            
-            // Re-sync UI pas konek
-            if (musicService?.isPlaying() == true) {
-                miniPlayer.visibility = View.VISIBLE
-                // Trigger update manual buat sinkronin Cover & Title
-                val intentSync = Intent("UPDATE_GUI").apply {
-                    putExtra("isPlaying", true)
-                    putExtra("title", musicService?.getCurrentTitle())
-                }
-                sendBroadcast(intentSync)
-            }
+    companion object {
+        const val ACTION_TOGGLE = "action_toggle"
+        const val ACTION_STOP = "action_stop"
+        const val ACTION_NEXT = "action_next"
+        const val ACTION_PREV = "action_prev"
+        const val CHANNEL_ID = "music_muy_v6"
+    }
 
-            val prefs = getSharedPreferences("MusicPrefs", MODE_PRIVATE)
-            prefs.getString("last_folder", null)?.let { loadSongs(Uri.parse(it)) }
-        }
-        override fun onServiceDisconnected(p0: ComponentName?) { 
-            isBound = false 
-            musicService = null
+    inner class MusicBinder : Binder() { fun getService() = this@MusicService }
+    override fun onBind(intent: Intent?): IBinder = binder
+
+    override fun onCreate() {
+        super.onCreate()
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        mediaSession = MediaSessionCompat(this, "MusicService").apply {
+            isActive = true
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+    // --- DATA BUAT MAIN ACTIVITY (NO TRICKS) ---
+    fun isPlaying(): Boolean = mediaPlayer?.isPlaying ?: false
+    fun getDuration(): Int = mediaPlayer?.duration ?: 0
+    fun getCurrentPos(): Int = mediaPlayer?.currentPosition ?: 0
+    fun getAlbumArt(): Bitmap? = currentAlbumArt
+    fun getCurrentTitle(): String? = if (currentIndex != -1) songList[currentIndex].first else null
+    fun seekTo(pos: Int) { mediaPlayer?.seekTo(pos) }
 
-        val permissions = getRequiredPermissions()
-        val notGranted = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-        if (notGranted.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, notGranted.toTypedArray(), 100)
-        }
+    fun setList(newList: List<Triple<String, String, Uri>>) {
+        songList.clear()
+        songList.addAll(newList)
+    }
 
-        initViews()
-        setupListeners()
-
-        val filter = IntentFilter().apply {
-            addAction("UPDATE_GUI")
-            addAction("HIDE_MINI_PLAYER")
-            addAction("FINISH_APP")
-        }
+    fun playMusic(index: Int) {
+        if (index < 0 || index >= songList.size) return
         
-        // SUPPORT ANDROID 14+ (Flag Receiver)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(guiReceiver, filter, Context.RECEIVER_EXPORTED)
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build())
+                .setAcceptsDelayedFocusGain(true)
+                .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                .build()
+            audioManager.requestAudioFocus(focusRequest)
         } else {
-            registerReceiver(guiReceiver, filter)
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(audioFocusChangeListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
         }
 
-        val intent = Intent(this, MusicService::class.java)
-        startForegroundService(intent) // Gunakan startForegroundService buat Android 8+
-        bindService(intent, connection, BIND_AUTO_CREATE)
-        startSeekBarUpdate()
-    }
-
-    private fun initViews() {
-        loadingAnim = findViewById(R.id.loadingAnim)
-        miniCover = findViewById(R.id.miniCover)
-        miniPlayer = findViewById(R.id.miniPlayer)
-        btnPlayPause = findViewById(R.id.btnPlayPause)
-        btnCloseMini = findViewById(R.id.btnCloseMini)
-        miniTitle = findViewById(R.id.miniTitle)
-        seekBar = findViewById(R.id.seekBar)
-        tvCurrentTime = findViewById(R.id.tvCurrentTime)
-        tvTotalTime = findViewById(R.id.tvTotalTime)
-        rv = findViewById(R.id.recyclerViewMusic)
-        rv.layoutManager = LinearLayoutManager(this)
-    }
-
-    private fun setupListeners() {
-        btnPlayPause.setOnClickListener { musicService?.togglePlay() }
-        btnCloseMini.setOnClickListener {
-            val stopIntent = Intent(this, MusicService::class.java).apply { action = "STOP" }
-            startService(stopIntent)
-        }
-        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) {
-                if (fromUser) musicService?.seekTo(p)
-            }
-            override fun onStartTrackingTouch(s: SeekBar?) {}
-            override fun onStopTrackingTouch(s: SeekBar?) {}
-        })
-        findViewById<Button>(R.id.btnPickFolder).setOnClickListener {
-            val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-            startActivityForResult(i, 100)
-        }
-    }
-
-    private fun loadSongs(uri: Uri) {
-        loadingAnim.visibility = View.VISIBLE
-        lifecycleScope.launch(Dispatchers.IO) {
-            val list = mutableListOf<Triple<String, String, Uri>>()
+        if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            currentIndex = index
+            val (title, artist, uri) = songList[index]
+            
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+            
             try {
-                val root = DocumentFile.fromTreeUri(this@MainActivity, uri)
-                root?.listFiles()?.forEach { file ->
-                    val name = file.name ?: ""
-                    if (name.endsWith(".mp3", true) || name.endsWith(".m4a", true)) {
-                        list.add(Triple(name, "Audio File", file.uri))
-                    }
+                mediaPlayer = MediaPlayer.create(this, uri).apply {
+                    start()
+                    setOnCompletionListener { playNext() }
                 }
+                extractMetadataAndNotify(title, artist, uri)
+                updatePlaybackState(true)
             } catch (e: Exception) { e.printStackTrace() }
-
-            withContext(Dispatchers.Main) {
-                loadingAnim.visibility = View.GONE
-                musicService?.setList(list)
-                rv.adapter = SongAdapter(this@MainActivity, list) { _, _, songUri ->
-                    val index = list.indexOfFirst { it.third == songUri }
-                    musicService?.playMusic(index)
-                }
-            }
         }
     }
 
-    private fun startSeekBarUpdate() {
-        handler.post(object : Runnable {
-            override fun run() {
-                musicService?.let { service ->
-                    if (service.isPlaying()) {
-                        val current = service.getCurrentPos()
-                        val duration = service.getDuration()
-                        if (duration > 0) {
-                            seekBar.max = duration
-                            seekBar.progress = current
-                            tvCurrentTime.text = formatTime(current)
-                            tvTotalTime.text = formatTime(duration)
-                        }
-                    }
-                }
-                handler.postDelayed(this, 1000)
+    private fun extractMetadataAndNotify(title: String, artist: String, uri: Uri) {
+        val mmr = MediaMetadataRetriever()
+        currentAlbumArt = null
+        try {
+            mmr.setDataSource(this, uri)
+            val art = mmr.embeddedPicture
+            if (art != null) currentAlbumArt = BitmapFactory.decodeByteArray(art, 0, art.size)
+        } catch (e: Exception) { e.printStackTrace() } finally { mmr.release() }
+
+        mediaSession.setMetadata(MediaMetadataCompat.Builder()
+            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
+            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
+            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, mediaPlayer?.duration?.toLong() ?: 0L)
+            .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, currentAlbumArt)
+            .build())
+
+        showNotification(title, artist, true)
+        updateActivityUI(true, title, uri)
+    }
+
+    fun playNext() { if (songList.isNotEmpty()) playMusic((currentIndex + 1) % songList.size) }
+    
+    fun playPrevious() {
+        if (songList.isNotEmpty()) {
+            val next = if (currentIndex - 1 < 0) songList.size - 1 else currentIndex - 1
+            playMusic(next)
+        }
+    }
+
+    fun togglePlay(): Boolean {
+        mediaPlayer?.let {
+            if (it.isPlaying) it.pause() else it.start()
+            val (t, a, u) = songList[currentIndex]
+            updatePlaybackState(it.isPlaying)
+            showNotification(t, a, it.isPlaying)
+            updateActivityUI(it.isPlaying, t, u)
+            return it.isPlaying
+        }
+        return false
+    }
+
+    private fun updatePlaybackState(isPlaying: Boolean) {
+        val state = if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED
+        mediaSession.setPlaybackState(PlaybackStateCompat.Builder()
+            .setState(state, mediaPlayer?.currentPosition?.toLong() ?: 0L, 1f)
+            .setActions(PlaybackStateCompat.ACTION_PLAY_PAUSE or 
+                       PlaybackStateCompat.ACTION_SKIP_TO_NEXT or 
+                       PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
+                       PlaybackStateCompat.ACTION_SEEK_TO)
+            .build())
+    }
+
+    private fun showNotification(title: String, artist: String, isPlaying: Boolean) {
+        val nm = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Music Muy", NotificationManager.IMPORTANCE_LOW))
+        }
+
+        val flag = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val pPrev = PendingIntent.getService(this, 3, Intent(this, MusicService::class.java).apply { action = ACTION_PREV }, flag)
+        val pToggle = PendingIntent.getService(this, 0, Intent(this, MusicService::class.java).apply { action = ACTION_TOGGLE }, flag)
+        val pNext = PendingIntent.getService(this, 1, Intent(this, MusicService::class.java).apply { action = ACTION_NEXT }, flag)
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_play) // BALIK KE ICON CUSTOM LU RYCL
+            .setContentTitle(title)
+            .setContentText(artist)
+            .setLargeIcon(currentAlbumArt)
+            .setOngoing(isPlaying) 
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setStyle(androidx.media.app.NotificationCompat.MediaStyle()
+                .setMediaSession(mediaSession.sessionToken)
+                .setShowActionsInCompactView(0, 1, 2))
+            .addAction(R.drawable.ic_prev, "Prev", pPrev) // ICON CUSTOM
+            .addAction(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play, "Toggle", pToggle) // ICON CUSTOM
+            .addAction(R.drawable.ic_next, "Next", pNext) // ICON CUSTOM
+            .build()
+
+        if (isPlaying) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            } else {
+                startForeground(1, notification)
             }
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_DETACH)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(false)
+            }
+            nm.notify(1, notification)
+        }
+    }
+
+    private fun updateActivityUI(isPlaying: Boolean, title: String, uri: Uri) {
+        sendBroadcast(Intent("UPDATE_GUI").apply {
+            putExtra("isPlaying", isPlaying)
+            putExtra("title", title)
+            putExtra("uri", uri.toString())
         })
     }
 
-    private fun formatTime(ms: Int): String {
-        val min = (ms / 1000) / 60
-        val sec = (ms / 1000) % 60
-        return String.format("%02d:%02d", min, sec)
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_PREV -> playPrevious()
+            ACTION_TOGGLE -> togglePlay()
+            ACTION_NEXT -> playNext()
+            ACTION_STOP -> stopEverything()
+        }
+        return START_STICKY
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (resultCode == RESULT_OK && requestCode == 100) {
-            data?.data?.let { uri ->
-                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                getSharedPreferences("MusicPrefs", MODE_PRIVATE).edit()
-                    .putString("last_folder", uri.toString()).apply()
-                loadSongs(uri)
-            }
-        }
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        stopEverything()
+    }
+
+    private fun stopEverything() {
+        mediaPlayer?.stop()
+        mediaPlayer?.release()
+        mediaPlayer = null
+        stopForeground(true)
+        stopSelf()
+        sendBroadcast(Intent("HIDE_MINI_PLAYER"))
     }
 
     override fun onDestroy() {
+        mediaSession.release()
+        mediaPlayer?.release()
         super.onDestroy()
-        handler.removeCallbacksAndMessages(null)
-        if (isBound) unbindService(connection)
-        try { unregisterReceiver(guiReceiver) } catch (e: Exception) {}
     }
 }

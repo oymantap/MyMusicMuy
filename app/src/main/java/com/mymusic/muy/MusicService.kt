@@ -17,7 +17,6 @@ import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import androidx.core.app.NotificationCompat
-import java.io.ByteArrayOutputStream
 
 class MusicService : Service() {
     var mediaPlayer: MediaPlayer? = null
@@ -44,7 +43,10 @@ class MusicService : Service() {
         const val CHANNEL_ID = "music_muy_v6"
     }
 
-    inner class MusicBinder : Binder() { fun getService() = this@MusicService }
+    inner class MusicBinder : Binder() { 
+        fun getService(): MusicService = this@MusicService 
+    }
+    
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onCreate() {
@@ -55,9 +57,12 @@ class MusicService : Service() {
         }
     }
 
+    // --- DATA INTERFACE UNTUK MAIN ACTIVITY (FIX UNRESOLVED REFERENCE) ---
     fun isPlaying(): Boolean = mediaPlayer?.isPlaying ?: false
     fun getDuration(): Int = mediaPlayer?.duration ?: 0
     fun getCurrentPos(): Int = mediaPlayer?.currentPosition ?: 0
+    fun getAlbumArt(): Bitmap? = currentAlbumArt // Explicit return type Bitmap?
+    fun getCurrentTitle(): String? = if (currentIndex != -1) songList[currentIndex].first else null
     fun seekTo(pos: Int) { mediaPlayer?.seekTo(pos) }
 
     fun setList(newList: List<Triple<String, String, Uri>>) {
@@ -95,14 +100,12 @@ class MusicService : Service() {
                     start()
                     setOnCompletionListener { playNext() }
                 }
-                // Step 1: Ambil Metadata & Cover
                 extractMetadataAndNotify(title, artist, uri)
                 updatePlaybackState(true)
             } catch (e: Exception) { e.printStackTrace() }
         }
     }
 
-    // Step 2: Fungsi maut buat ambil info & sebar ke mana-mana
     private fun extractMetadataAndNotify(title: String, artist: String, uri: Uri) {
         val mmr = MediaMetadataRetriever()
         currentAlbumArt = null
@@ -118,7 +121,6 @@ class MusicService : Service() {
             mmr.release() 
         }
 
-        // Update MediaSession (Buat Lockscreen)
         mediaSession.setMetadata(MediaMetadataCompat.Builder()
             .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
             .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
@@ -126,10 +128,7 @@ class MusicService : Service() {
             .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, currentAlbumArt)
             .build())
 
-        // Kirim ke Notifikasi
         showNotification(title, artist, true)
-        
-        // Kirim ke MainActivity
         updateActivityUI(true, title, uri)
     }
 
@@ -177,18 +176,18 @@ class MusicService : Service() {
         val pNext = PendingIntent.getService(this, 1, Intent(this, MusicService::class.java).apply { action = ACTION_NEXT }, flag)
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(R.drawable.ic_play)
             .setContentTitle(title)
             .setContentText(artist)
-            .setLargeIcon(currentAlbumArt) // Ambil dari variabel global yang udah di-extract
+            .setLargeIcon(currentAlbumArt)
             .setOngoing(isPlaying) 
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setStyle(androidx.media.app.NotificationCompat.MediaStyle()
                 .setMediaSession(mediaSession.sessionToken)
                 .setShowActionsInCompactView(0, 1, 2))
-            .addAction(android.R.drawable.ic_media_previous, "Prev", pPrev)
-            .addAction(if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, "Toggle", pToggle)
-            .addAction(android.R.drawable.ic_media_next, "Next", pNext)
+            .addAction(R.drawable.ic_prev, "Prev", pPrev)
+            .addAction(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play, "Toggle", pToggle)
+            .addAction(R.drawable.ic_next, "Next", pNext)
             .build()
 
         if (isPlaying) {
@@ -213,9 +212,6 @@ class MusicService : Service() {
         intent.putExtra("isPlaying", isPlaying)
         intent.putExtra("title", title)
         intent.putExtra("uri", uri.toString())
-        
-        // Bonus: Kalau mau kirim Bitmap langsung via broadcast emang berat, 
-        // tapi mending UI ambil dari URI aja karena Glide udah punya cache super kenceng.
         sendBroadcast(intent)
     }
 
