@@ -5,7 +5,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.viewpager2.adapter.FragmentStateAdapter
 
 class FspAdapter(fa: FragmentActivity) : FragmentStateAdapter(fa) {
-    override fun getItemCount(): Int = 2 // Cuma ada 2 halaman: Cover & Lirik
+    override fun getItemCount(): Int = 2 
 
     override fun createFragment(position: Int): Fragment {
         return when (position) {

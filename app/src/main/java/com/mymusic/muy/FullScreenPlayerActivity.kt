@@ -21,6 +21,10 @@ class FullScreenPlayerActivity : AppCompatActivity() {
     private lateinit var tvCurrentTime: TextView
     private lateinit var tvTotalTime: TextView
     
+    // Tab Views
+    private lateinit var tabSampul: TextView
+    private lateinit var tabLirik: TextView
+    
     private val handler = Handler(Looper.getMainLooper())
 
     private val connection = object : ServiceConnection {
@@ -42,8 +46,14 @@ class FullScreenPlayerActivity : AppCompatActivity() {
         initViews()
         setupListeners()
 
-        // Setup ViewPager dengan Adapter
         viewPager.adapter = FspAdapter(this)
+        
+        // Sinkronisasi Tab pas di-swipe manual
+        viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                updateTabHighlight(position)
+            }
+        })
 
         val intent = Intent(this, MusicService::class.java)
         bindService(intent, connection, BIND_AUTO_CREATE)
@@ -56,16 +66,20 @@ class FullScreenPlayerActivity : AppCompatActivity() {
         viewPager = findViewById(R.id.viewPagerFSP)
         txtTitle = findViewById(R.id.fspTitle)
         txtArtist = findViewById(R.id.fspArtist)
-        
-        // Lu manggil Button yang ada di dalem FrameLayout
         btnPlayPauseInner = findViewById(R.id.btnPlayPauseInner)
-        
         seekBar = findViewById(R.id.fspSeekBar)
         tvCurrentTime = findViewById(R.id.tvCurrentTime)
         tvTotalTime = findViewById(R.id.tvTotalTime)
+        
+        tabSampul = findViewById(R.id.tabSampul)
+        tabLirik = findViewById(R.id.tabLirik)
     }
 
     private fun setupListeners() {
+        // Klik Tab Manual
+        tabSampul.setOnClickListener { viewPager.currentItem = 0 }
+        tabLirik.setOnClickListener { viewPager.currentItem = 1 }
+
         val playAction = View.OnClickListener {
             musicService?.togglePlay()
             updateUI()
@@ -96,6 +110,20 @@ class FullScreenPlayerActivity : AppCompatActivity() {
         })
     }
 
+    private fun updateTabHighlight(position: Int) {
+        if (position == 0) {
+            tabSampul.setTextColor(Color.WHITE)
+            tabSampul.setBackgroundColor(Color.parseColor("#4DFFFFFF"))
+            tabLirik.setTextColor(Color.parseColor("#80FFFFFF"))
+            tabLirik.setBackgroundColor(Color.TRANSPARENT)
+        } else {
+            tabLirik.setTextColor(Color.WHITE)
+            tabLirik.setBackgroundColor(Color.parseColor("#4DFFFFFF"))
+            tabSampul.setTextColor(Color.parseColor("#80FFFFFF"))
+            tabSampul.setBackgroundColor(Color.TRANSPARENT)
+        }
+    }
+
     private fun updateUI() {
         musicService?.let { service ->
             val currentIndex = service.currentIndex
@@ -108,17 +136,13 @@ class FullScreenPlayerActivity : AppCompatActivity() {
 
             val art = service.getAlbumArt()
             
-            // Update Cover di Fragment (ViewPager position 0)
             val fragment = supportFragmentManager.findFragmentByTag("f0") as? CoverFragment
             fragment?.updateCover(art)
 
-            // Palette Background
             if (art != null) {
                 Palette.from(art).generate { palette ->
                     val color = palette?.getDominantColor(Color.parseColor("#121212")) ?: Color.BLACK
                     rootLayout.setBackgroundColor(color)
-                    
-                    // Update Blur Bg kalo ada
                     findViewById<ImageView>(R.id.fspBlurBg)?.setImageBitmap(art)
                 }
             } else {
@@ -145,7 +169,9 @@ class FullScreenPlayerActivity : AppCompatActivity() {
         handler.post(object : Runnable {
             override fun run() {
                 if (isBound) {
-                    updateUI()
+                    val current = musicService?.getCurrentPos() ?: 0
+                    seekBar.progress = current
+                    tvCurrentTime.text = formatTime(current)
                 }
                 handler.postDelayed(this, 1000)
             }
