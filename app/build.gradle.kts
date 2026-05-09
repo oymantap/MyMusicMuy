@@ -57,24 +57,22 @@ android {
 }
 
 dependencies {
-    // Library standar dari Version Catalog (libs.versions.toml)
+    // Library standar dari Version Catalog
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
     implementation(libs.material)
-    implementation 'androidx.palette:palette-ktx:1.0.0'
-    implementation("androidx.viewpager2:viewpager2:1.1.0") // TAMBAH INI BUAT SWIPE
     
-    // --- LIBRARY TAMBAHAN UNTUK FITUR MUSIK & GAMBAR ---
-    // MediaSession & Kontrol Notifikasi[span_6](start_span)[span_6](end_span)[span_7](start_span)[span_7](end_span)
+    // Fitur Baru FSP (WAJIB PAKAI TANDA KURUNG)
+    implementation("androidx.palette:palette-ktx:1.0.0")
+    implementation("androidx.viewpager2:viewpager2:1.1.0")
+    
+    // Media & Glide
     implementation("androidx.media:media:1.7.0")
-    
-    // Glide untuk Load Cover Album (Sudah diperbaiki: com.github)[span_8](start_span)[span_8](end_span)[span_9](start_span)[span_9](end_span)
     implementation("com.github.bumptech.glide:glide:4.16.0")
     annotationProcessor("com.github.bumptech.glide:compiler:4.16.0")
-    // ---------------------------------------------------
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
