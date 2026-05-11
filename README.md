@@ -1,45 +1,116 @@
-# MyMusic Muy 🎧
+# 🎧✨ MyMusic Muy
 
-**MyMusic Muy** adalah aplikasi pemutar musik lokal berbasis Android yang ringan, elegan, dan fokus pada pengalaman visual. Aplikasi ini dirancang untuk memberikan kontrol penuh kepada pengguna atas koleksi musik mereka dengan UI yang modern dan bersih.
-
-## ✨ Fitur Utama
-* **Folder Picker:** Pilih folder musik lu secara spesifik tanpa perlu nge-scan seluruh memori HP.
-* **Dynamic UI:** Background aplikasi berubah otomatis mengikuti warna dominan cover album (menggunakan Palette API).
-* **Mini Player:** Kontrol musik tetap tersedia saat lu lagi nyari lagu lain di daftar putar.
-* **Full Screen Player:** Tampilan pemutaran layar penuh dengan kontrol navigasi yang intuitif.
-* **Support Multi-Format:** Mendukung `.mp3`, `.m4a`, `.wav`, `.flac`, `.ogg`, dan banyak lagi.
-* **LRC Support (In Progress):** Persiapan fitur sinkronisasi lirik otomatis berbasis file `.lrc`.
-
-## 📸 Penampakan UI
-Aplikasi ini memiliki dua mode tampilan utama:
-1.  **Main View:** Daftar lagu dengan Mini Player di bagian bawah.
-2.  **Full Screen Mode:** Tampilan fokus dengan fitur *SAMPUL* dan *LIRIK* yang bisa di-swipe atau diklik manual.
-
-## 🛠️ Teknologi yang Digunakan
-* **Language:** Kotlin
-* **Architecture:** Lifecycle-aware components (Service, Activity, BroadcastReceiver)
-* **Concurrency:** Coroutines & LifecycleScope
-* **UI Components:** ViewPager2, RecyclerView, Palette API
-* **Storage:** Storage Access Framework (SAF) untuk akses file yang aman di Android terbaru.
-
-## 🔓 Open Source & Lisensi
-Tentu saja! Project ini adalah **Open Source**. 
-
-Gue percaya berbagi kode adalah cara terbaik buat belajar bareng. Project ini berada di bawah lisensi **MIT License**. Artinya, lu bebas buat:
-* Pake aplikasi ini buat pribadi.
-* Modifikasi kodenya sesuka hati.
-* Sebarin lagi atau dipake buat project lain.
-
-*Syaratnya cuma satu: Jangan hapus atribusi pembuat aslinya.*
-
-## 🚀 Cara Install (Buat Developer)
-1.  Clone repository ini:
-    ```bash
-    git clone [https://github.com/username/mymusic-muy.git](https://github.com/username/mymusic-muy.git)
-    ```
-2.  Buka di **Android Studio (Jellyfish ke atas disarankan)**.
-3.  Tunggu Gradle Sync selesai.
-4.  Run ke emulator atau device fisik (Minimal Android 7.0 / API 24).
+![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)
+![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
+![Open Source](https://img.shields.io/badge/Open%20Source-MIT-green?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-Active%20Dev-blue?style=for-the-badge)
 
 ---
-Dibuat dengan ❤️ oleh **Rycl**.
+
+## 🌈 INTRO
+
+**MyMusic Muy** adalah aplikasi pemutar musik lokal Android yang fokus ke:
+🎨 UI hidup  
+⚡ performa ringan  
+🎧 pengalaman musik yang smooth dan responsif  
+
+UI dibuat dinamis, berubah sesuai lagu, bukan sekadar player statis.
+
+---
+
+## 🎬 DEMO VISUAL (GIF)
+
+📱 MAIN SCREEN  
+![main](assets/demo-main.gif)
+
+🎧 FULL PLAYER MODE  
+![player](assets/demo-player.gif)
+
+🌈 DYNAMIC COLOR ENGINE  
+![palette](assets/demo-palette.gif)
+
+🎭 TRANSITION EFFECT  
+![transition](assets/demo-transition.gif)
+
+---
+
+## ✨ FITUR UTAMA
+
+🎼 Folder Picker SAF  
+└ Pilih folder musik tanpa scan seluruh storage
+
+🎧 Mini Player Floating  
+└ Kontrol tetap jalan saat scroll playlist
+
+🖥️ Full Screen Player Mode  
+└ UI cinematic + animasi smooth + gesture control
+
+🌈 Dynamic Theme Engine (Palette API)  
+└ Warna UI berubah sesuai cover lagu
+
+📁 Multi Format Support  
+└ MP3 • M4A • WAV • FLAC • OGG
+
+📜 LRC Lyrics (WIP)  
+└ Sinkronisasi lirik real-time
+
+🔔 Notification Control  
+└ Play / Pause / Next / Prev dari notifikasi
+
+---
+
+## 🧠 CORE TECHNOLOGY
+
+🟣 Kotlin (Main Language)  
+📱 Android SDK  
+⚡ Coroutines (Async)  
+🎨 Material UI Components  
+📂 Storage Access Framework (SAF)  
+🌈 Palette API (Dynamic Color)  
+🎵 MediaPlayer Engine
+
+---
+
+## ⚡ SYSTEM HIGHLIGHTS
+
+🧠 Smart Playback Engine  
+└ Stabil walau di background
+
+📡 Broadcast Control System  
+└ Kontrol dari luar activity
+
+🔄 Lifecycle Safe Audio  
+└ Musik tetap hidup saat pindah layar
+
+🎛️ Mini Player Sync  
+└ UI sinkron real-time dengan audio state
+
+---
+
+## 🖥️ UI CONCEPT
+
+┌──────────────────────────┐  
+│ 🎵 Now Playing          │  
+│ [ Cover Art ]           │  
+│ Song - Artist           │  
+│                         │  
+│ ▶ ⏸ ⏭ ⏮               │  
+│ ██████── seek bar       │  
+└──────────────────────────┘  
+
+---
+
+## 🧪 PROJECT STATUS
+
+🚧 Development : ACTIVE  
+🎨 UI Polish : ONGOING  
+📜 LRC System : IN PROGRESS  
+⚡ Optimization : ONGOING  
+🔊 Audio Engine : STABLE  
+
+---
+
+## 📦 INSTALLATION
+
+```bash
+git clone https://github.com/oymantap/MyMusicMuy.git
