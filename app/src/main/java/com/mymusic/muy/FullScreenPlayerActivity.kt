@@ -52,6 +52,8 @@ class FullScreenPlayerActivity : AppCompatActivity() {
         viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
                 updateTabHighlight(position)
+                // Setiap swipe, kita trigger update UI biar lirik/cover bener
+                updateUI() 
             }
         })
 
@@ -110,17 +112,18 @@ class FullScreenPlayerActivity : AppCompatActivity() {
         })
     }
 
+    // Update Tab biar Modern (Pake Background Drawable yang ada radiusnya)
     private fun updateTabHighlight(position: Int) {
         if (position == 0) {
             tabSampul.setTextColor(Color.WHITE)
-            tabSampul.setBackgroundColor(Color.parseColor("#4DFFFFFF"))
+            tabSampul.setBackgroundResource(R.drawable.bg_tab_selected)
             tabLirik.setTextColor(Color.parseColor("#80FFFFFF"))
-            tabLirik.setBackgroundColor(Color.TRANSPARENT)
+            tabLirik.setBackgroundResource(0)
         } else {
             tabLirik.setTextColor(Color.WHITE)
-            tabLirik.setBackgroundColor(Color.parseColor("#4DFFFFFF"))
+            tabLirik.setBackgroundResource(R.drawable.bg_tab_selected)
             tabSampul.setTextColor(Color.parseColor("#80FFFFFF"))
-            tabSampul.setBackgroundColor(Color.TRANSPARENT)
+            tabSampul.setBackgroundResource(0)
         }
     }
 
@@ -129,16 +132,22 @@ class FullScreenPlayerActivity : AppCompatActivity() {
             val currentIndex = service.currentIndex
             if (currentIndex == -1 || service.songList.isEmpty()) return
 
-            val (title, artist, _) = service.songList[currentIndex]
+            val (title, artist, uri) = service.songList[currentIndex]
             txtTitle.text = title
             txtArtist.text = artist
             txtTitle.isSelected = true 
 
             val art = service.getAlbumArt()
             
-            val fragment = supportFragmentManager.findFragmentByTag("f0") as? CoverFragment
-            fragment?.updateCover(art)
+            // 1. Update Cover (Fragment 0)
+            val coverFragment = supportFragmentManager.findFragmentByTag("f0") as? CoverFragment
+            coverFragment?.updateCover(art)
 
+            // 2. Update Lirik (Fragment 1) - INI FITUR BARUNYA
+            val lyricsFragment = supportFragmentManager.findFragmentByTag("f1") as? LyricsFragment
+            lyricsFragment?.loadLyrics(uri)
+
+            // Palette Background
             if (art != null) {
                 Palette.from(art).generate { palette ->
                     val color = palette?.getDominantColor(Color.parseColor("#121212")) ?: Color.BLACK

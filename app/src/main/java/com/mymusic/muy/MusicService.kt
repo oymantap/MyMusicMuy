@@ -27,11 +27,24 @@ class MusicService : Service() {
     var currentIndex = -1
     private var currentAlbumArt: Bitmap? = null
 
+    // Listener buat fokus audio biar kaga tabrakan sama aplikasi lain
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS -> if (mediaPlayer?.isPlaying == true) togglePlay()
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> if (mediaPlayer?.isPlaying == true) mediaPlayer?.pause()
             AudioManager.AUDIOFOCUS_GAIN -> if (mediaPlayer != null && !mediaPlayer!!.isPlaying) mediaPlayer?.start()
+        }
+    }
+
+    // INI KUNCI BIAR BAR NOTIFIKASI BISA DIGESER (SEEK BAR FIX)
+    private val mediaSessionCallback = object : MediaSessionCompat.Callback() {
+        override fun onPlay() { togglePlay() }
+        override fun onPause() { togglePlay() }
+        override fun onSkipToNext() { playNext() }
+        override fun onSkipToPrevious() { playPrevious() }
+        override fun onSeekTo(pos: Long) {
+            mediaPlayer?.seekTo(pos.toInt())
+            updatePlaybackState(mediaPlayer?.isPlaying ?: false)
         }
     }
 
@@ -52,8 +65,11 @@ class MusicService : Service() {
     override fun onCreate() {
         super.onCreate()
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        
+        // Inisialisasi MediaSession
         mediaSession = MediaSessionCompat(this, "MusicService").apply {
             isActive = true
+            setCallback(mediaSessionCallback) // PASANG CALLBACK DI SINI!
         }
     }
 
@@ -62,7 +78,10 @@ class MusicService : Service() {
     fun getCurrentPos(): Int = mediaPlayer?.currentPosition ?: 0
     fun getAlbumArt(): Bitmap? = currentAlbumArt
     fun getCurrentTitle(): String? = if (currentIndex != -1) songList[currentIndex].first else null
-    fun seekTo(pos: Int) { mediaPlayer?.seekTo(pos) }
+    fun seekTo(pos: Int) { 
+        mediaPlayer?.seekTo(pos) 
+        updatePlaybackState(mediaPlayer?.isPlaying ?: false)
+    }
 
     fun setList(newList: List<Triple<String, String, Uri>>) {
         songList.clear()
@@ -152,6 +171,7 @@ class MusicService : Service() {
         return false
     }
 
+    // UPDATE: State harus dikasih tau posisi terbarunya biar bar notif kaga ngaco
     private fun updatePlaybackState(isPlaying: Boolean) {
         val state = if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED
         mediaSession.setPlaybackState(PlaybackStateCompat.Builder()
@@ -159,7 +179,9 @@ class MusicService : Service() {
             .setActions(PlaybackStateCompat.ACTION_PLAY_PAUSE or 
                        PlaybackStateCompat.ACTION_SKIP_TO_NEXT or 
                        PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
-                       PlaybackStateCompat.ACTION_SEEK_TO)
+                       PlaybackStateCompat.ACTION_SEEK_TO or
+                       PlaybackStateCompat.ACTION_PLAY or
+                       PlaybackStateCompat.ACTION_PAUSE)
             .build())
     }
 
@@ -175,7 +197,7 @@ class MusicService : Service() {
         val pNext = PendingIntent.getService(this, 1, Intent(this, MusicService::class.java).apply { action = ACTION_NEXT }, flag)
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_play) // PAKAI ICON LU
+            .setSmallIcon(R.drawable.ic_play) 
             .setContentTitle(title)
             .setContentText(artist)
             .setLargeIcon(currentAlbumArt)
@@ -184,9 +206,9 @@ class MusicService : Service() {
             .setStyle(androidx.media.app.NotificationCompat.MediaStyle()
                 .setMediaSession(mediaSession.sessionToken)
                 .setShowActionsInCompactView(0, 1, 2))
-            .addAction(R.drawable.ic_prev, "Prev", pPrev) // PAKAI ICON LU
-            .addAction(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play, "Toggle", pToggle) // PAKAI ICON LU
-            .addAction(R.drawable.ic_next, "Next", pNext) // PAKAI ICON LU
+            .addAction(R.drawable.ic_prev, "Prev", pPrev) 
+            .addAction(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play, "Toggle", pToggle) 
+            .addAction(R.drawable.ic_next, "Next", pNext) 
             .build()
 
         if (isPlaying) {
@@ -225,22 +247,21 @@ class MusicService : Service() {
         stopEverything()
     }
 
-private fun stopEverything() {
-    mediaPlayer?.stop()
-    mediaPlayer?.release()
-    mediaPlayer = null
-    currentIndex = -1 // Reset index biar UI tahu gak ada lagu lagi
-    
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        stopForeground(STOP_FOREGROUND_REMOVE)
-    } else {
-        stopForeground(true)
+    private fun stopEverything() {
+        mediaPlayer?.stop()
+        mediaPlayer?.release()
+        mediaPlayer = null
+        currentIndex = -1 
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            stopForeground(true)
+        }
+        
+        stopSelf()
+        sendBroadcast(Intent("HIDE_MINI_PLAYER"))
     }
-    
-    stopSelf()
-    sendBroadcast(Intent("HIDE_MINI_PLAYER"))
-    // sendBroadcast(Intent("FINISH_APP")) <--- HAPUS ATAU KOMEN BARIS INI SETAN!
-}
 
     override fun onDestroy() {
         mediaSession.release()
