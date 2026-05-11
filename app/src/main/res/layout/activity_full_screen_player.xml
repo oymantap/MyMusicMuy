@@ -7,7 +7,6 @@
     android:background="#1A1A1A"
     android:keepScreenOn="true">
 
-    <!-- Background Blur Effect -->
     <ImageView
         android:id="@+id/fspBlurBg"
         android:layout_width="match_parent"
@@ -15,13 +14,11 @@
         android:scaleType="centerCrop"
         android:alpha="0.4" />
 
-    <!-- Dark Overlay biar Icon makin keliatan jelas -->
     <View
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#80000000" />
 
-    <!-- Top Bar -->
     <RelativeLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
@@ -38,45 +35,52 @@
             android:rotation="90"
             app:tint="#FFFFFF" />
 
-        <!-- Tab Selector (Sekarang Bisa Diklik Manual) -->
-        <LinearLayout
+        <androidx.cardview.widget.CardView
             android:layout_width="wrap_content"
             android:layout_height="36dp"
             android:layout_centerInParent="true"
-            android:background="#33FFFFFF"
-            android:padding="2dp"
-            android:orientation="horizontal">
-            <TextView
-                android:id="@+id/tabSampul"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:paddingHorizontal="16dp"
-                android:gravity="center"
-                android:text="SAMPUL"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:background="#4DFFFFFF"
-                android:clickable="true"
-                android:focusable="true"/>
-            <TextView
-                android:id="@+id/tabLirik"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:paddingHorizontal="16dp"
-                android:gravity="center"
-                android:text="LIRIK"
-                android:textColor="#80FFFFFF"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:clickable="true"
-                android:focusable="true"/>
-        </LinearLayout>
+            app:cardBackgroundColor="#33FFFFFF"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="0dp">
 
-        <!-- Tombol Kanan Atas Dihapus sesuai gambar 1000344648.jpg -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:padding="2dp">
+
+                <TextView
+                    android:id="@+id/tabSampul"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:paddingHorizontal="16dp"
+                    android:gravity="center"
+                    android:text="SAMPUL"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:background="@drawable/bg_tab_selected"
+                    android:clickable="true"
+                    android:focusable="true"/>
+
+                <TextView
+                    android:id="@+id/tabLirik"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:paddingHorizontal="16dp"
+                    android:gravity="center"
+                    android:text="LIRIK"
+                    android:textColor="#80FFFFFF"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:background="@android:color/transparent"
+                    android:clickable="true"
+                    android:focusable="true"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
     </RelativeLayout>
 
-    <!-- Konten Utama -->
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/viewPagerFSP"
         android:layout_width="match_parent"
@@ -84,43 +88,36 @@
         android:layout_below="@id/topBar"
         android:layout_above="@+id/infoLayout" />
 
-    <!-- Info Judul & Artist (Dua tombol di kanan dihapus) -->
     <LinearLayout
         android:id="@+id/infoLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_above="@+id/seekLayout"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:paddingHorizontal="24dp"
-        android:gravity="center_vertical"
-        android:layout_marginBottom="8dp">
+        android:layout_marginBottom="12dp">
 
-        <LinearLayout
+        <TextView
+            android:id="@+id/fspTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
-            <TextView
-                android:id="@+id/fspTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Judul Lagu"
-                android:textColor="#FFFFFF"
-                android:textSize="24sp"
-                android:textStyle="bold"
-                android:ellipsize="marquee"
-                android:singleLine="true"
-                android:marqueeRepeatLimit="marquee_forever" />
-            <TextView
-                android:id="@+id/fspArtist"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Nama Artis"
-                android:textColor="#B3FFFFFF"
-                android:textSize="16sp" />
-        </LinearLayout>
+            android:text="Judul Lagu"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:ellipsize="marquee"
+            android:singleLine="true"
+            android:marqueeRepeatLimit="marquee_forever" />
+
+        <TextView
+            android:id="@+id/fspArtist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Nama Artis"
+            android:textColor="#B3FFFFFF"
+            android:textSize="16sp" />
     </LinearLayout>
 
-    <!-- SeekBar Layout (Posisinya dinaikin dikit) -->
     <LinearLayout
         android:id="@+id/seekLayout"
         android:layout_width="match_parent"
@@ -128,19 +125,21 @@
         android:layout_above="@+id/controls"
         android:orientation="vertical"
         android:paddingHorizontal="16dp"
-        android:layout_marginBottom="32dp">
+        android:layout_marginBottom="24dp">
         
         <SeekBar
             android:id="@+id/fspSeekBar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:progressTint="#FFFFFF"
-            android:thumbTint="#FFFFFF" />
+            android:thumbTint="#FFFFFF"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
             
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingHorizontal="12dp">
+            android:paddingHorizontal="14dp">
             <TextView
                 android:id="@+id/tvCurrentTime"
                 android:layout_width="wrap_content"
@@ -159,13 +158,12 @@
         </RelativeLayout>
     </LinearLayout>
 
-    <!-- Main Controls Area (Shuffle & Repeat Dihapus) -->
     <RelativeLayout
         android:id="@+id/controls"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:paddingBottom="60dp"
+        android:paddingBottom="80dp"
         android:paddingHorizontal="24dp">
 
         <ImageButton
@@ -184,13 +182,18 @@
             android:layout_width="80dp"
             android:layout_height="80dp"
             android:layout_centerInParent="true">
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_circle_play" />
             <ImageButton
                 android:id="@+id/btnPlayPauseInner"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_play"
-                android:scaleType="fitCenter" />
+                android:scaleType="centerInside"
+                android:padding="20dp" />
         </FrameLayout>
 
         <ImageButton
