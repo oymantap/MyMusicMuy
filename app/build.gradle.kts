@@ -74,6 +74,16 @@ dependencies {
     implementation("com.github.bumptech.glide:glide:4.16.0")
     annotationProcessor("com.github.bumptech.glide:compiler:4.16.0")
 
+   // --- TAMBAHKAN INI (BENSIN UNTUK LIRIK & ASYNC) ---
+    // Buat lifecycleScope (Biar kaga Unresolved reference 'lifecycleScope')
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    
+    // Buat Coroutines (Biar kaga Unresolved reference 'Dispatchers')
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    
+    // Buat DocumentFile (Biar kaga Unresolved reference 'DocumentFile')
+    implementation("androidx.documentfile:documentfile:1.0.1")
+    
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
