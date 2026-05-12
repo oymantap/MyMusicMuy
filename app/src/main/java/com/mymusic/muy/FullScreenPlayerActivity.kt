@@ -153,35 +153,27 @@ private fun updateUI() {
         txtArtist.text = artist
         txtTitle.isSelected = true 
 
-        // AMBIL FRAGMENT DENGAN CARA YANG BENER (VIEW PAGER 2)
-        // Fragment 0 = Cover, Fragment 1 = Lirik
         val coverFragment = supportFragmentManager.findFragmentByTag("f0") as? CoverFragment
         val lyricsFragment = supportFragmentManager.findFragmentByTag("f1") as? LyricsFragment
 
         val art = service.getAlbumArt()
         coverFragment?.updateCover(art)
-        
-        // TRIGGER LOAD LIRIK
-        // Tips: Kita kirim URI lagu ke fragment lirik
         lyricsFragment?.loadLyrics(uri)
 
-        // Palette & Background
         if (art != null) {
             Palette.from(art).generate { palette ->
                 val color = palette?.getDarkVibrantColor(Color.parseColor("#121212")) ?: Color.BLACK
                 rootLayout.setBackgroundColor(color)
-                // Kasih animasi fade biar smooth ganti warnanya
             }
             findViewById<ImageView>(R.id.fspBlurBg)?.setImageBitmap(art)
         } else {
             rootLayout.setBackgroundColor(Color.parseColor("#121212"))
-            findViewById<ImageView>(R.id.fspBlurBg)?.setImageResource(R.drawable.default_art)
+            // GANTI INI: Balikin ke ic_play biar kaga error build lagi
+            findViewById<ImageView>(R.id.fspBlurBg)?.setImageResource(R.drawable.ic_play)
         }
         
-        // Update Icon Play/Pause
         btnPlayPauseInner.setImageResource(if (service.isPlaying()) R.drawable.ic_pause else R.drawable.ic_play)
 
-        // Update Durasi
         val duration = service.getDuration()
         if (duration > 0) {
             seekBar.max = duration

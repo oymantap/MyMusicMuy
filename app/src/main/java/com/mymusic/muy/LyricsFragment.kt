@@ -8,7 +8,13 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import java.io.File
+// TAMBAHKAN BARIS DI BAWAH INI:
+import androidx.lifecycle.lifecycleScope
+import androidx.documentfile.provider.DocumentFile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
 
 class LyricsFragment : Fragment() {
     private lateinit var rvLyrics: RecyclerView
