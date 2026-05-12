@@ -19,12 +19,15 @@ class LyricsAdapter(private val lyrics: List<String>) : RecyclerView.Adapter<Lyr
         return ViewHolder(view)
     }
 
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.tvLine.text = lyrics[position]
-        holder.tvLine.setTextColor(android.graphics.Color.WHITE)
-        holder.tvLine.textSize = 18f // Pake float untuk textSize
-        holder.tvLine.setPadding(0, 10, 0, 10)
+ override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+    holder.tvLine.apply {
+        text = lyrics[position]
+        setTextColor(android.graphics.Color.WHITE)
+        textSize = 18f
+        gravity = android.view.Gravity.CENTER // Biar liriknya di tengah kayak karaoke
+        setPadding(20, 15, 20, 15)
     }
+}
 
     override fun getItemCount(): Int = lyrics.size
 }

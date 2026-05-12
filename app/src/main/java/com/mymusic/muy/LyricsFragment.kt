@@ -38,30 +38,61 @@ fun loadLyrics(songUri: android.net.Uri?) {
         return
     }
 
-    try {
-        // CARA BARU: Ambil path asli dari URI
-        val projection = arrayOf(android.provider.MediaStore.Audio.Media.DATA)
-        val cursor = requireContext().contentResolver.query(songUri, projection, null, null, null)
-        val actualPath = cursor?.use {
-            if (it.moveToFirst()) it.getString(it.getColumnIndexOrThrow(android.provider.MediaStore.Audio.Media.DATA)) else null
-        }
+    lifecycleScope.launch(Dispatchers.IO) {
+        try {
+            val context = requireContext()
+            // 1. Ambil nama file asli dari Uri (misal: "lagu.mp3")
+            val songFile = DocumentFile.fromSingleUri(context, songUri)
+            val fullFileName = songFile?.name ?: ""
+            
+            if (fullFileName.isNotEmpty()) {
+                // 2. Cari file .lrc dengan nama yang sama (misal: "lagu.lrc")
+                val lrcName = fullFileName.substringBeforeLast(".") + ".lrc"
+                
+                // 3. Kita butuh parent folder-nya. 
+                // Karena kita dapet SingleUri, kita harus cari manual di folder yang udah di-pick user
+                val treeUriStr = context.getSharedPreferences("MusicPrefs", android.content.Context.MODE_PRIVATE)
+                    .getString("last_folder", null)
 
-        if (actualPath != null) {
-            val lrcPath = actualPath.substringBeforeLast(".") + ".lrc"
-            val lrcFile = File(lrcPath)
+                if (treeUriStr != null) {
+                    val rootTree = DocumentFile.fromTreeUri(context, android.net.Uri.parse(treeUriStr))
+                    val lrcFile = rootTree?.findFile(lrcName)
 
-            if (lrcFile.exists()) {
-                val lines = lrcFile.readLines(Charsets.UTF_8)
-                for (line in lines) {
-                    val cleanLine = line.replace(Regex("\\[.*?\\]"), "").trim()
-                    if (cleanLine.isNotEmpty()) lyricsList.add(cleanLine)
+                    if (lrcFile != null && lrcFile.exists()) {
+                        // 4. Baca konten file liriknya pake ContentResolver
+                        context.contentResolver.openInputStream(lrcFile.uri)?.use { inputStream ->
+                            val lines = inputStream.bufferedReader().readLines()
+                            
+                            val tempLyrics = mutableListOf<String>()
+                            for (line in lines) {
+                                // Bersihin timestamp [00:12.34]
+                                val cleanLine = line.replace(Regex("\\[.*?\\]"), "").trim()
+                                if (cleanLine.isNotEmpty()) {
+                                    tempLyrics.add(cleanLine)
+                                }
+                            }
+
+                            withContext(Dispatchers.Main) {
+                                if (tempLyrics.isNotEmpty()) {
+                                    lyricsList.addAll(tempLyrics)
+                                    showLyrics()
+                                } else {
+                                    showNoLyrics()
+                                }
+                            }
+                            return@launch
+                        }
+                    }
                 }
-                if (lyricsList.isNotEmpty()) { showLyrics(); return }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-    } catch (e: Exception) { e.printStackTrace() }
-    
-    showNoLyrics() // Kalau semua cara gagal
+
+        withContext(Dispatchers.Main) {
+            showNoLyrics()
+        }
+    }
 }
 
     private fun showLyrics() {

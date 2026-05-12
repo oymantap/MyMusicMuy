@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private lateinit var rv: RecyclerView
@@ -30,6 +31,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var miniCover: ImageView
     private lateinit var loadingAnim: ProgressBar
     
+    // UI STATS & HELP
+    private lateinit var tvStats: TextView
+    private lateinit var btnHelp: ImageButton
+
     private lateinit var seekBar: SeekBar
     private lateinit var tvCurrentTime: TextView
     private lateinit var tvTotalTime: TextView
@@ -109,6 +114,9 @@ class MainActivity : AppCompatActivity() {
         seekBar = findViewById(R.id.seekBar)
         tvCurrentTime = findViewById(R.id.tvCurrentTime)
         tvTotalTime = findViewById(R.id.tvTotalTime)
+        tvStats = findViewById(R.id.tvStats) // Statistik Header
+        btnHelp = findViewById(R.id.btnHelp)   // Tombol Help Header
+        
         rv = findViewById(R.id.recyclerViewMusic)
         rv.layoutManager = LinearLayoutManager(this)
         
@@ -118,7 +126,8 @@ class MainActivity : AppCompatActivity() {
     private fun setupListeners() {
         btnPlayPause.setOnClickListener { musicService?.togglePlay() }
         
-        // PINTU KE FULL SCREEN PLAYER (FSP) - FIX BIAR GAK MENTAL
+        btnHelp.setOnClickListener { showHelpDialog() }
+
         miniPlayer.setOnClickListener {
             val service = musicService
             if (service != null && service.currentIndex != -1) {
@@ -134,6 +143,7 @@ class MainActivity : AppCompatActivity() {
             }
             startService(stopIntent)
         }
+
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) {
                 if (fromUser) musicService?.seekTo(p)
@@ -141,6 +151,7 @@ class MainActivity : AppCompatActivity() {
             override fun onStartTrackingTouch(s: SeekBar?) {}
             override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+
         findViewById<Button>(R.id.btnPickFolder).setOnClickListener {
             val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
             startActivityForResult(i, 100)
@@ -160,7 +171,6 @@ class MainActivity : AppCompatActivity() {
 
             btnPlayPause.setImageResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play)
             
-            // PERBAIKAN MARQUEE: Hanya update teks jika judulnya berbeda
             if (miniTitle.text.toString() != title) {
                 miniTitle.text = title
                 miniTitle.isSelected = true 
@@ -168,7 +178,6 @@ class MainActivity : AppCompatActivity() {
             
             miniPlayer.visibility = View.VISIBLE
 
-            // RESET gambar dulu biar gak nempel cover sebelumnya
             miniCover.setImageDrawable(null)
             if (art != null) {
                 miniCover.setImageBitmap(art)
@@ -178,56 +187,84 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-private fun loadSongs(uri: Uri) {
-    loadingAnim.visibility = View.VISIBLE
-    lifecycleScope.launch(Dispatchers.IO) {
-        val list = mutableListOf<Triple<String, String, Uri>>()
-        
-        val supportedExtensions = listOf(".mp3", ".m4a", ".wav", ".flac", ".ogg", ".aac", ".ts", ".mid", ".xmf", ".ota", ".opus")
+    private fun loadSongs(uri: Uri) {
+        loadingAnim.visibility = View.VISIBLE
+        lifecycleScope.launch(Dispatchers.IO) {
+            val list = mutableListOf<Triple<String, String, Uri>>()
+            var totalBytes = 0L
+            val supportedExtensions = listOf(".mp3", ".m4a", ".wav", ".flac", ".ogg", ".aac", ".ts", ".mid", ".xmf", ".ota", ".opus")
 
-        try {
-            val root = DocumentFile.fromTreeUri(this@MainActivity, uri)
-            root?.listFiles()?.forEach { file ->
-                val fileName = file.name?.lowercase() ?: ""
-                
-                val isAudio = supportedExtensions.any { fileName.endsWith(it) } || 
-                              file.type?.startsWith("audio/") == true
+            try {
+                val root = DocumentFile.fromTreeUri(this@MainActivity, uri)
+                root?.listFiles()?.forEach { file ->
+                    val fileName = file.name?.lowercase() ?: ""
+                    val isAudio = supportedExtensions.any { fileName.endsWith(it) } || 
+                                  file.type?.startsWith("audio/") == true
 
-                if (isAudio) {
-                    val mmr = MediaMetadataRetriever()
-                    try {
-                        mmr.setDataSource(this@MainActivity, file.uri)
-                        
-                        val title = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) 
-                                    ?: file.name?.substringBeforeLast(".") 
-                                    ?: "Unknown Title"
-                                    
-                        val artist = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) 
-                                     ?: "Unknown Artist"
-                        
-                        list.add(Triple(title, artist, file.uri))
-                    } catch (e: Exception) {
-                        val fallbackTitle = file.name?.substringBeforeLast(".") ?: "Unknown"
-                        list.add(Triple(fallbackTitle, "Unknown Artist", file.uri))
-                    } finally {
-                        try { mmr.release() } catch (e: Exception) {}
+                    if (isAudio) {
+                        totalBytes += file.length()
+                        val mmr = MediaMetadataRetriever()
+                        try {
+                            mmr.setDataSource(this@MainActivity, file.uri)
+                            val title = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) 
+                                        ?: file.name?.substringBeforeLast(".") ?: "Unknown"
+                            val artist = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: "Unknown Artist"
+                            list.add(Triple(title, artist, file.uri))
+                        } catch (e: Exception) {
+                            list.add(Triple(file.name?.substringBeforeLast(".") ?: "Unknown", "Unknown", file.uri))
+                        } finally {
+                            try { mmr.release() } catch (e: Exception) {}
+                        }
                     }
                 }
-            }
-        } catch (e: Exception) { 
-            e.printStackTrace() 
-        }
+            } catch (e: Exception) { e.printStackTrace() }
 
-        withContext(Dispatchers.Main) {
-            loadingAnim.visibility = View.GONE
-            musicService?.setList(list)
-            rv.adapter = SongAdapter(this@MainActivity, list) { _, _, songUri ->
-                val index = list.indexOfFirst { it.third == songUri }
-                musicService?.playMusic(index)
+            withContext(Dispatchers.Main) {
+                loadingAnim.visibility = View.GONE
+                tvStats.text = "M: ${list.size} | S: ${formatFileSize(totalBytes)}"
+                musicService?.setList(list)
+                rv.adapter = SongAdapter(this@MainActivity, list) { _, _, songUri ->
+                    val index = list.indexOfFirst { it.third == songUri }
+                    musicService?.playMusic(index)
+                }
             }
         }
     }
-}
+
+    // FUNGSI KONVERSI DINAMIS: KB, MB, GB, TB
+    private fun formatFileSize(size: Long): String {
+        if (size <= 0) return "0B"
+        val units = arrayOf("B", "KB", "MB", "GB", "TB")
+        val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
+        return String.format(Locale.US, "%.1f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
+    }
+
+    private fun showHelpDialog() {
+        val message = """
+            🚀 Selamat datang di MyMusic Muy!
+            
+            Aplikasi ini adalah media player offline. Kami tidak menyediakan musik secara langsung di dalam aplikasi.
+            
+            Cara Mengisi Musik:
+            1. Siapkan file musik di memori HP Anda.
+            2. YouTube: Salin link video, cari situs 'YouTube Downloader', lalu pilih format .MP3 (bukan .MP4).
+            3. Spotify: Salin link lagu, gunakan situs 'Spotify Downloader' untuk mengunduh.
+            4. Metadata: Jika lagu tidak memiliki cover atau nama artis, gunakan aplikasi 'automaTag' di Play Store untuk memperbaikinya secara otomatis.
+            5. Jika sudah terunduh, anda bisa pindahkan lagu tersebut kedalam folder yang akan di pilih dalam aplikasi kami
+            
+            Statistik Header:
+            • M: Jumlah total lagu di folder.
+            • S: Ukuran penyimpanan yang digunakan koleksi Anda.
+            
+            Selamat mendengarkan! 🎧
+        """.trimIndent()
+
+        android.app.AlertDialog.Builder(this, android.app.AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle("Panduan Pengguna")
+            .setMessage(message)
+            .setPositiveButton("Mengerti") { dialog, _ -> dialog.dismiss() }
+            .show()
+    }
 
     private fun startSeekBarUpdate() {
         handler.post(object : Runnable {
@@ -254,7 +291,7 @@ private fun loadSongs(uri: Uri) {
     private fun formatTime(ms: Int): String {
         val min = (ms / 1000) / 60
         val sec = (ms / 1000) % 60
-        return String.format("%02d:%02d", min, sec)
+        return String.format(Locale.US, "%02d:%02d", min, sec)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

@@ -39,6 +39,22 @@ class FullScreenPlayerActivity : AppCompatActivity() {
         }
     }
 
+private val updateReceiver = object : BroadcastReceiver() {
+    override fun onReceive(context: Context?, intent: Intent?) {
+        updateUI() // Setiap ada sinyal lagu berubah, refresh UI (termasuk lirik)
+    }
+}
+
+override fun onResume() {
+    super.onResume()
+    registerReceiver(updateReceiver, IntentFilter("UPDATE_GUI"))
+}
+
+override fun onPause() {
+    super.onPause()
+    unregisterReceiver(updateReceiver)
+}
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_full_screen_player)
@@ -127,65 +143,67 @@ class FullScreenPlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateUI() {
-        musicService?.let { service ->
-            val currentIndex = service.currentIndex
-            if (currentIndex == -1 || service.songList.isEmpty()) return
+private fun updateUI() {
+    musicService?.let { service ->
+        val currentIndex = service.currentIndex
+        if (currentIndex == -1 || service.songList.isEmpty()) return
 
-            val (title, artist, uri) = service.songList[currentIndex]
-            txtTitle.text = title
-            txtArtist.text = artist
-            txtTitle.isSelected = true 
+        val (title, artist, uri) = service.songList[currentIndex]
+        txtTitle.text = title
+        txtArtist.text = artist
+        txtTitle.isSelected = true 
 
-            val art = service.getAlbumArt()
-            
-            // 1. Update Cover (Fragment 0)
-            val coverFragment = supportFragmentManager.findFragmentByTag("f0") as? CoverFragment
-            coverFragment?.updateCover(art)
+        // AMBIL FRAGMENT DENGAN CARA YANG BENER (VIEW PAGER 2)
+        // Fragment 0 = Cover, Fragment 1 = Lirik
+        val coverFragment = supportFragmentManager.findFragmentByTag("f0") as? CoverFragment
+        val lyricsFragment = supportFragmentManager.findFragmentByTag("f1") as? LyricsFragment
 
-            // 2. Update Lirik (Fragment 1) - INI FITUR BARUNYA
-            val lyricsFragment = supportFragmentManager.findFragmentByTag("f1") as? LyricsFragment
-            lyricsFragment?.loadLyrics(uri)
+        val art = service.getAlbumArt()
+        coverFragment?.updateCover(art)
+        
+        // TRIGGER LOAD LIRIK
+        // Tips: Kita kirim URI lagu ke fragment lirik
+        lyricsFragment?.loadLyrics(uri)
 
-            // Palette Background
-            if (art != null) {
-                Palette.from(art).generate { palette ->
-                    val color = palette?.getDominantColor(Color.parseColor("#121212")) ?: Color.BLACK
-                    rootLayout.setBackgroundColor(color)
-                    findViewById<ImageView>(R.id.fspBlurBg)?.setImageBitmap(art)
-                }
-            } else {
-                rootLayout.setBackgroundColor(Color.parseColor("#121212"))
-                findViewById<ImageView>(R.id.fspBlurBg)?.setImageDrawable(null)
+        // Palette & Background
+        if (art != null) {
+            Palette.from(art).generate { palette ->
+                val color = palette?.getDarkVibrantColor(Color.parseColor("#121212")) ?: Color.BLACK
+                rootLayout.setBackgroundColor(color)
+                // Kasih animasi fade biar smooth ganti warnanya
             }
-            
-            val isPlaying = service.isPlaying()
-            val icon = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
-            btnPlayPauseInner.setImageResource(icon)
+            findViewById<ImageView>(R.id.fspBlurBg)?.setImageBitmap(art)
+        } else {
+            rootLayout.setBackgroundColor(Color.parseColor("#121212"))
+            findViewById<ImageView>(R.id.fspBlurBg)?.setImageResource(R.drawable.default_art)
+        }
+        
+        // Update Icon Play/Pause
+        btnPlayPauseInner.setImageResource(if (service.isPlaying()) R.drawable.ic_pause else R.drawable.ic_play)
 
-            val current = service.getCurrentPos()
-            val duration = service.getDuration()
-            if (duration > 0) {
-                seekBar.max = duration
-                seekBar.progress = current
-                tvCurrentTime.text = formatTime(current)
-                tvTotalTime.text = formatTime(duration)
-            }
+        // Update Durasi
+        val duration = service.getDuration()
+        if (duration > 0) {
+            seekBar.max = duration
+            tvTotalTime.text = formatTime(duration)
         }
     }
+}
 
-    private fun startUpdateLoop() {
-        handler.post(object : Runnable {
-            override fun run() {
-                if (isBound) {
-                    val current = musicService?.getCurrentPos() ?: 0
+  private fun startUpdateLoop() {
+    handler.post(object : Runnable {
+        override fun run() {
+            musicService?.let {
+                if (isBound && it.isPlaying()) {
+                    val current = it.getCurrentPos()
                     seekBar.progress = current
                     tvCurrentTime.text = formatTime(current)
                 }
-                handler.postDelayed(this, 1000)
             }
-        })
-    }
+            handler.postDelayed(this, 1000)
+        }
+    })
+}
 
     private fun formatTime(ms: Int): String {
         val min = (ms / 1000) / 60
