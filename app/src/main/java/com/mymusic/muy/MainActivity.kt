@@ -31,9 +31,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var miniCover: ImageView
     private lateinit var loadingAnim: ProgressBar
     
-    // UI STATS & HELP
+    // UI STATS, HELP, & WEB DOWNLOADER
     private lateinit var tvStats: TextView
     private lateinit var btnHelp: ImageButton
+    private lateinit var btnWebDownloader: ImageButton // Tombol Baru
 
     private lateinit var seekBar: SeekBar
     private lateinit var tvCurrentTime: TextView
@@ -114,8 +115,9 @@ class MainActivity : AppCompatActivity() {
         seekBar = findViewById(R.id.seekBar)
         tvCurrentTime = findViewById(R.id.tvCurrentTime)
         tvTotalTime = findViewById(R.id.tvTotalTime)
-        tvStats = findViewById(R.id.tvStats) // Statistik Header
-        btnHelp = findViewById(R.id.btnHelp)   // Tombol Help Header
+        tvStats = findViewById(R.id.tvStats) 
+        btnHelp = findViewById(R.id.btnHelp)   
+        btnWebDownloader = findViewById(R.id.btnWebDownloader) // Inisialisasi Tombol Baru
         
         rv = findViewById(R.id.recyclerViewMusic)
         rv.layoutManager = LinearLayoutManager(this)
@@ -127,6 +129,12 @@ class MainActivity : AppCompatActivity() {
         btnPlayPause.setOnClickListener { musicService?.togglePlay() }
         
         btnHelp.setOnClickListener { showHelpDialog() }
+
+        // Tombol Membuka Downloader Bertab
+        btnWebDownloader.setOnClickListener {
+            val intent = Intent(this, WebDownloaderActivity::class.java)
+            startActivity(intent)
+        }
 
         miniPlayer.setOnClickListener {
             val service = musicService
@@ -231,7 +239,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // FUNGSI KONVERSI DINAMIS: KB, MB, GB, TB
     private fun formatFileSize(size: Long): String {
         if (size <= 0) return "0B"
         val units = arrayOf("B", "KB", "MB", "GB", "TB")
@@ -250,7 +257,6 @@ class MainActivity : AppCompatActivity() {
             2. YouTube: Salin link video, cari situs 'YouTube Downloader', lalu pilih format .MP3 (bukan .MP4).
             3. Spotify: Salin link lagu, gunakan situs 'Spotify Downloader' untuk mengunduh.
             4. Metadata: Jika lagu tidak memiliki cover atau nama artis, gunakan aplikasi 'automaTag' di Play Store untuk memperbaikinya secara otomatis.
-            5. Jika sudah terunduh, anda bisa pindahkan lagu tersebut kedalam folder yang akan di pilih dalam aplikasi kami
             
             Statistik Header:
             • M: Jumlah total lagu di folder.

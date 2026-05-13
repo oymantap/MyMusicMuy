@@ -9,7 +9,6 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 
-// Data class untuk menyimpan waktu dan isi lirik
 data class LyricLine(
     val timeMs: Long,
     val content: String,
@@ -23,6 +22,7 @@ class LyricsAdapter(private val lyrics: List<LyricLine>) : RecyclerView.Adapter<
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        // Menggunakan layout sederhana bawaan android
         val view = LayoutInflater.from(parent.context).inflate(android.R.layout.simple_list_item_1, parent, false)
         return ViewHolder(view)
     }
@@ -32,21 +32,33 @@ class LyricsAdapter(private val lyrics: List<LyricLine>) : RecyclerView.Adapter<
         holder.tvLine.apply {
             text = item.content
             gravity = Gravity.CENTER
-            setPadding(20, 30, 20, 30) // Padding lebih lega buat mode fokus
+            // Padding atas-bawah dibikin lebar biar enak dilihat pas di tengah
+            setPadding(40, 50, 40, 50) 
 
             if (item.isCurrent) {
-                // MODE FOKUS: Terang, Gede, Bold
                 setTextColor(Color.WHITE)
-                textSize = 24f
+                textSize = 26f // Lu minta fokus, gue bikin mantap
                 setTypeface(null, Typeface.BOLD)
                 alpha = 1.0f
             } else {
-                // MODE BIASA: Agak gelap, kecil
-                setTextColor(Color.parseColor("#B3FFFFFF"))
+                setTextColor(Color.parseColor("#80FFFFFF")) // Lebih transparan biar fokus ke tengah
                 textSize = 18f
                 setTypeface(null, Typeface.NORMAL)
-                alpha = 0.5f
+                alpha = 0.4f
             }
+        }
+    }
+
+    // Fungsi sakti biar nggak perlu notifyDataSetChanged() terus-menerus
+    fun updateSelection(newIndex: Int) {
+        val oldIndex = lyrics.indexOfFirst { it.isCurrent }
+        if (oldIndex != -1) {
+            lyrics[oldIndex].isCurrent = false
+            notifyItemChanged(oldIndex)
+        }
+        if (newIndex in lyrics.indices) {
+            lyrics[newIndex].isCurrent = true
+            notifyItemChanged(newIndex)
         }
     }
 

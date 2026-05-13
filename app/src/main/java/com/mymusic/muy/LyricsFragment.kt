@@ -14,6 +14,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.lifecycle.lifecycleScope
 import androidx.documentfile.provider.DocumentFile
+import androidx.recyclerview.widget.LinearSnapHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -24,9 +25,9 @@ class LyricsFragment : Fragment() {
     private lateinit var lyricsAdapter: LyricsAdapter
     private val lyricsList = mutableListOf<LyricLine>()
     
-    // Sistem Cerdas Variables
     private var isUserScrolling = false
     private val scrollHandler = Handler(Looper.getMainLooper())
+    private var lastActiveIndex = -1
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         val view = inflater.inflate(R.layout.fragment_lyrics, container, false)
@@ -40,8 +41,13 @@ class LyricsFragment : Fragment() {
 
     private fun setupRecyclerView() {
         lyricsAdapter = LyricsAdapter(lyricsList)
-        rvLyrics.layoutManager = LinearLayoutManager(requireContext())
+        val layoutManager = LinearLayoutManager(requireContext())
+        rvLyrics.layoutManager = layoutManager
         rvLyrics.adapter = lyricsAdapter
+
+        // TRIK 1: SnapHelper biar lirik "magnetis" berhenti di tengah
+        val snapHelper = LinearSnapHelper()
+        snapHelper.attachToRecyclerView(rvLyrics)
     }
 
     private fun setupScrollListener() {
@@ -49,21 +55,20 @@ class LyricsFragment : Fragment() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 super.onScrollStateChanged(recyclerView, newState)
                 if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
-                    isUserScrolling = true // User lagi nyentuh layar
+                    isUserScrolling = true
                     scrollHandler.removeCallbacksAndMessages(null)
                 } else if (newState == RecyclerView.SCROLL_STATE_IDLE) {
-                    // Jika diam selama 3 detik, kembalikan kontrol ke sistem otomatis
                     scrollHandler.postDelayed({
                         isUserScrolling = false
-                    }, 3000)
+                    }, 2500)
                 }
             }
         })
     }
 
-    // Fungsi Utama: Panggil ini dari FullScreenPlayerActivity setiap detik
+    // FUNGSI UTAMA: Update Highlight dan Scroll ke Tengah
     fun updateLyricsHighlight(currentMs: Long) {
-        if (lyricsList.isEmpty()) return
+        if (lyricsList.isEmpty() || isUserScrolling) return
 
         var targetIndex = -1
         for (i in lyricsList.indices) {
@@ -72,91 +77,88 @@ class LyricsFragment : Fragment() {
             }
         }
 
-        if (targetIndex != -1 && !lyricsList[targetIndex].isCurrent) {
-            // Update status lirik di UI
-            for (i in lyricsList.indices) {
-                lyricsList[i].isCurrent = (i == targetIndex)
-            }
+        if (targetIndex != -1 && targetIndex != lastActiveIndex) {
+            lastActiveIndex = targetIndex
             
-            lyricsAdapter.notifyDataSetChanged()
+            // Update UI warna lewat adapter tanpa notifyDataSetChanged
+            lyricsAdapter.updateSelection(targetIndex)
 
-            // Sistem Cerdas: Auto scroll hanya jika user tidak sedang scrolling manual
-            if (!isUserScrolling) {
-                rvLyrics.smoothScrollToPosition(targetIndex)
-            }
+            // TRIK 2: Scroll ke tengah dengan Offset
+            // rvLyrics.height / 2 (Titik tengah) dikurangi setengah tinggi item lirik (~70-100)
+            val offset = (rvLyrics.height / 2) - 100
+            
+            (rvLyrics.layoutManager as LinearLayoutManager)
+                .scrollToPositionWithOffset(targetIndex, offset)
         }
     }
 
     fun loadLyrics(songUri: Uri?) {
-        lyricsList.clear()
-        if (songUri == null) {
-            showNoLyrics()
-            return
-        }
-
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val context = requireContext()
-                val songFile = DocumentFile.fromSingleUri(context, songUri)
-                val fullFileName = songFile?.name ?: ""
-                
-                if (fullFileName.isNotEmpty()) {
-                    val lrcName = fullFileName.substringBeforeLast(".") + ".lrc"
-                    val treeUriStr = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE)
-                        .getString("last_folder", null)
-
-                    if (treeUriStr != null) {
-                        val rootTree = DocumentFile.fromTreeUri(context, Uri.parse(treeUriStr))
-                        val lrcFile = rootTree?.findFile(lrcName)
-
-                        if (lrcFile != null && lrcFile.exists()) {
-                            context.contentResolver.openInputStream(lrcFile.uri)?.use { inputStream ->
-                                val lines = inputStream.bufferedReader().readLines()
-                                val tempLyrics = mutableListOf<LyricLine>()
-
-                                for (line in lines) {
-                                    // Regex untuk mengambil [00:12.34]
-                                    val timeMatch = Regex("\\[(\\d+):(\\d+\\.\\d+)\\]").find(line)
-                                    if (timeMatch != null) {
-                                        val min = timeMatch.groupValues[1].toLong()
-                                        val sec = (timeMatch.groupValues[2].toDouble() * 1000).toLong()
-                                        val totalMs = (min * 60 * 1000) + sec
-                                        
-                                        val content = line.replace(Regex("\\[.*?\\]"), "").trim()
-                                        if (content.isNotEmpty()) {
-                                            tempLyrics.add(LyricLine(totalMs, content))
-                                        }
-                                    }
-                                }
-
-                                withContext(Dispatchers.Main) {
-                                    if (tempLyrics.isNotEmpty()) {
-                                        lyricsList.addAll(tempLyrics)
-                                        showLyrics()
-                                    } else {
-                                        showNoLyrics()
-                                    }
-                                }
-                                return@launch
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
+        lifecycleScope.launch(Dispatchers.Main) {
+            lyricsList.clear()
+            lastActiveIndex = -1
+            if (songUri == null) {
+                showNoLyrics()
+                return@launch
             }
 
-            withContext(Dispatchers.Main) {
+            val tempLyrics = withContext(Dispatchers.IO) { parseLrcFile(songUri) }
+
+            if (tempLyrics != null && tempLyrics.isNotEmpty()) {
+                lyricsList.addAll(tempLyrics)
+                showLyrics()
+            } else {
                 showNoLyrics()
             }
         }
+    }
+
+    private fun parseLrcFile(songUri: Uri): List<LyricLine>? {
+        try {
+            val context = requireContext()
+            val songFile = DocumentFile.fromSingleUri(context, songUri)
+            val fullFileName = songFile?.name ?: return null
+            val lrcName = fullFileName.substringBeforeLast(".") + ".lrc"
+
+            val treeUriStr = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE)
+                .getString("last_folder", null) ?: return null
+
+            val rootTree = DocumentFile.fromTreeUri(context, Uri.parse(treeUriStr))
+            val lrcFile = rootTree?.findFile(lrcName) ?: return null
+
+            context.contentResolver.openInputStream(lrcFile.uri)?.use { inputStream ->
+                val lines = inputStream.bufferedReader().readLines()
+                val tempLyrics = mutableListOf<LyricLine>()
+
+                for (line in lines) {
+                    val timeMatch = Regex("\\[(\\d+):(\\d+\\.\\d+)\\]").find(line)
+                    if (timeMatch != null) {
+                        val min = timeMatch.groupValues[1].toLong()
+                        val sec = (timeMatch.groupValues[2].toDouble() * 1000).toLong()
+                        val totalMs = (min * 60 * 1000) + sec
+                        
+                        val content = line.replace(Regex("\\[.*?\\]"), "").trim()
+                        if (content.isNotEmpty()) {
+                            tempLyrics.add(LyricLine(totalMs, content))
+                        }
+                    }
+                }
+                return tempLyrics.sortedBy { it.timeMs }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return null
     }
 
     private fun showLyrics() {
         tvNoLyrics.visibility = View.GONE
         rvLyrics.visibility = View.VISIBLE
         lyricsAdapter.notifyDataSetChanged()
-        rvLyrics.scrollToPosition(0)
+        rvLyrics.post {
+            // Biar lirik pertama langsung di tengah pas load
+            val offset = (rvLyrics.height / 2) - 100
+            (rvLyrics.layoutManager as LinearLayoutManager).scrollToPositionWithOffset(0, offset)
+        }
     }
 
     private fun showNoLyrics() {
