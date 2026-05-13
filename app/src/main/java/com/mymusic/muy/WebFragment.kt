@@ -3,6 +3,7 @@ package com.mymusic.muy
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -59,40 +60,78 @@ class WebFragment : Fragment() {
         settings.databaseEnabled = true
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         
+        // 1. DUKUNGAN COOKIE (Biar download kaga gagal mulu)
+        val cookieManager = CookieManager.getInstance()
+        cookieManager.setAcceptCookie(true)
+        cookieManager.setAcceptThirdPartyCookies(webView, true)
+
+        // 2. JEMBATAN SHARE API (Biar tombol Share di Spotify/Web jalan)
+        webView.addJavascriptInterface(WebShareBridge(requireContext()), "AndroidShare")
+        
+        // Inject script buat nge-redirect navigator.share ke jembatan kita
         webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                val shareScript = """
+                    if (navigator.share === undefined) {
+                        navigator.share = function(data) {
+                            if (data.url || data.text) {
+                                AndroidShare.share(data.title || 'Share', data.text || '', data.url || '');
+                            }
+                        };
+                    }
+                """.trimIndent()
+                view?.evaluateJavascript(shareScript, null)
+            }
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean = false
         }
+
+        // 3. LONG PRESS UNTUK SALIN LINK (Cadangan)
+        webView.setOnLongClickListener {
+            val url = webView.url
+            if (url != null) {
+                val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val clip = android.content.ClipData.newPlainText("URL", url)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(requireContext(), "Link disalin!", Toast.LENGTH_SHORT).show()
+            }
+            true
+        }
     }
 
-private fun setupDownloadLogic() {
-    webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
-        // 1. Ambil nama asli dari web
-        var fileName = URLUtil.guessFileName(url, contentDisposition, mimetype)
-        
-        // 2. AUTO RENAME (Pake Regex biar makin galak)
-        // (?i) -> artinya Ignore Case (Gak peduli huruf gede/kecil)
-        // \\s* -> artinya Spasi (Mau ada spasi atau nggak, tetep disikat)
-        
-        val filters = listOf(
-            "(?i)spotidown\\.app\\s*-\\s*",
-            "(?i)y2mate\\.com\\s*-\\s*",
-            "(?i)y2mate\\.bz\\s*-\\s*",
-            "(?i)spotifydown\\.com\\s*-\\s*"
-        )
-
-        filters.forEach { pattern ->
-            fileName = fileName.replace(pattern.toRegex(), "").trim()
+    // Class Internal untuk menangani Share dari JavaScript
+    class WebShareBridge(private val context: Context) {
+        @JavascriptInterface
+        fun share(title: String, text: String, url: String) {
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, title)
+                putExtra(Intent.EXTRA_TEXT, "$text $url".trim())
+            }
+            context.startActivity(Intent.createChooser(shareIntent, "Bagikan lewat"))
         }
-
-        // 3. Jaga-jaga kalo extension-nya ngaco
-        if (fileName.endsWith(".bin") || fileName.length < 5) {
-            fileName = "Muy_DL_${System.currentTimeMillis()}.mp3"
-        }
-        
-        // 4. Langsung sikat download
-        downloadWithProgress(url, mimetype, fileName)
     }
-}
+
+    private fun setupDownloadLogic() {
+        webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
+            var fileName = URLUtil.guessFileName(url, contentDisposition, mimetype)
+            
+            val filters = listOf(
+                "(?i)spotidown\\.app\\s*-\\s*",
+                "(?i)y2mate\\.com\\s*-\\s*",
+                "(?i)y2mate\\.bz\\s*-\\s*",
+                "(?i)spotifydown\\.com\\s*-\\s*"
+            )
+            filters.forEach { pattern ->
+                fileName = fileName.replace(pattern.toRegex(), "").trim()
+            }
+
+            if (fileName.endsWith(".bin") || fileName.length < 5) {
+                fileName = "Muy_DL_${System.currentTimeMillis()}.mp3"
+            }
+            
+            downloadWithProgress(url, mimetype, fileName)
+        }
+    }
 
     private fun downloadWithProgress(fileUrl: String, mimeType: String, fileName: String) {
         val context = requireContext()
@@ -111,8 +150,8 @@ private fun setupDownloadLogic() {
             setContentText("Sedang mengunduh...")
             setSmallIcon(android.R.drawable.stat_sys_download)
             setPriority(NotificationCompat.PRIORITY_LOW)
-            setOngoing(true) // Biar kaga bisa di-swipe pas lagi jalan
-            setOnlyAlertOnce(true) // Biar kaga bunyi terus tiap update 1%
+            setOngoing(true)
+            setOnlyAlertOnce(true)
         }
 
         lifecycleScope.launch(Dispatchers.IO) {
@@ -124,7 +163,13 @@ private fun setupDownloadLogic() {
                 if (newFile != null) {
                     val url = java.net.URL(fileUrl)
                     val connection = url.openConnection() as HttpURLConnection
+                    
+                    // KIRIM COOKIE & USER AGENT (Anti Gagal Download)
+                    val cookies = CookieManager.getInstance().getCookie(fileUrl)
+                    if (cookies != null) connection.setRequestProperty("Cookie", cookies)
                     connection.setRequestProperty("User-Agent", webView.settings.userAgentString)
+                    connection.setRequestProperty("Referer", webView.url)
+                    
                     connection.connect()
 
                     val fileLength = connection.contentLength
@@ -135,12 +180,9 @@ private fun setupDownloadLogic() {
                         val buffer = ByteArray(4096)
                         var total: Long = 0
                         var count: Int
-                        
                         while (inputStream.read(buffer).also { count = it } != -1) {
                             total += count
                             outputStream.write(buffer, 0, count)
-                            
-                            // Update progres setiap beberapa byte
                             if (fileLength > 0) {
                                 val progress = (total * 100 / fileLength).toInt()
                                 builder.setProgress(100, progress, false)
@@ -153,9 +195,7 @@ private fun setupDownloadLogic() {
                     inputStream.close()
 
                     withContext(Dispatchers.Main) {
-                        builder.setContentText("Unduhan Selesai")
-                            .setProgress(0, 0, false)
-                            .setOngoing(false)
+                        builder.setContentText("Unduhan Selesai").setProgress(0, 0, false).setOngoing(false)
                             .setSmallIcon(android.R.drawable.stat_sys_download_done)
                         notificationManager.notify(notificationId, builder.build())
                         Toast.makeText(context, "Selesai: $fileName", Toast.LENGTH_SHORT).show()
@@ -172,12 +212,7 @@ private fun setupDownloadLogic() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = "Download Progress"
-            val descriptionText = "Menampilkan progres unduhan file"
-            val importance = NotificationManager.IMPORTANCE_LOW
-            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
-                description = descriptionText
-            }
+            val channel = NotificationChannel(CHANNEL_ID, "Download Progress", NotificationManager.IMPORTANCE_LOW)
             val notificationManager = requireContext().getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
