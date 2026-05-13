@@ -11,6 +11,8 @@ import android.widget.Toast
 import androidx.documentfile.provider.DocumentFile
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewFeature
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -35,10 +37,10 @@ class WebFragment : Fragment() {
         targetUrl = arguments?.getString("url")
     }
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         webView = WebView(requireContext())
         setupWebView()
-        setupDownloadLogic() // Aktifkan pendeteksi download
+        setupDownloadLogic()
         targetUrl?.let { webView.loadUrl(it) }
         return webView
     }
@@ -49,78 +51,106 @@ class WebFragment : Fragment() {
         settings.domStorageEnabled = true
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
+        settings.databaseEnabled = true
         
+        // 1. TEMBAK DARK MODE (Native & JS Backup)
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
+            WebSettingsCompat.setForceDark(settings, WebSettingsCompat.FORCE_DARK_ON)
+        }
+
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 
-                // INJEKSI: Samarkan branding & Paksa Dark Mode
-                val jsHide = """
-                    javascript:(function() { 
-                        var selectors = ['header', '.navbar', 'footer', '.logo', '.ads-container'];
-                        selectors.forEach(function(s) {
-                            var el = document.querySelectorAll(s);
-                            el.forEach(function(e) { e.style.display = 'none'; });
+                // 2. TEMBAK PENGGANTI NAMA (SP Down / YT Down) & MATIKAN IKLAN
+                val jsClean = """
+                    (function() {
+                        // Ganti Title Berdasarkan URL
+                        var currentUrl = window.location.href;
+                        if (currentUrl.includes('spotifydown')) { document.title = 'SP Downloader'; }
+                        if (currentUrl.includes('y2mate')) { document.title = 'YT Downloader'; }
+
+                        // Matikan Iklan & Elemen Sampah
+                        var badElements = [
+                            'header', '.navbar', 'footer', '.logo', 
+                            '.ads-container', '#ad-slot', '.ad-box', 
+                            'iframe[src*="googleads"]', 'div[id*="ai_widget"]'
+                        ];
+                        badElements.forEach(function(selector) {
+                            document.querySelectorAll(selector).forEach(function(el) {
+                                el.remove(); 
+                            });
                         });
+
+                        // Paksa Background Hitam jika native dark mode gagal
                         document.body.style.backgroundColor = '#000000';
                         document.body.style.color = '#FFFFFF';
-                    })()
+                    })();
                 """.trimIndent()
-                view?.loadUrl(jsHide)
+                
+                webView.evaluateJavascript(jsClean, null)
+            }
+
+            // Mencegah iklan buka tab baru (pop-up)
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val url = request?.url.toString()
+                // Hanya izinkan navigasi jika masih di domain yang sama atau domain downloader
+                return if (url.contains("spotifydown") || url.contains("y2mate") || url.contains("google.com")) {
+                    false 
+                } else {
+                    true // Blokir navigasi ke situs iklan luar
+                }
             }
         }
     }
 
     private fun setupDownloadLogic() {
-        webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
-            // Saat user klik tombol download di web, fungsi ini jalan
-            downloadToUserFolder(url, mimetype)
+        webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->
+            // Ambil nama file asli dari Content-Disposition jika ada
+            var fileName = URLUtil.guessFileName(url, contentDisposition, mimetype)
+            if (fileName.endsWith(".bin")) fileName = "Muy_Download_${System.currentTimeMillis()}.mp3"
+            
+            downloadToUserFolder(url, mimetype, fileName)
         }
     }
 
-    private fun downloadToUserFolder(fileUrl: String, mimeType: String) {
+    private fun downloadToUserFolder(fileUrl: String, mimeType: String, fileName: String) {
         val context = requireContext()
-        val prefs = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE)
-        val treeUriStr = prefs.getString("last_folder", null)
+        val treeUriStr = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE)
+            .getString("last_folder", null)
 
         if (treeUriStr == null) {
-            Toast.makeText(context, "Pilih folder musik dulu di halaman utama!", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Pilih folder musik dulu!", Toast.LENGTH_LONG).show()
             return
         }
 
-        Toast.makeText(context, "Mulai mengunduh ke folder pilihan...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Mengunduh: $fileName", Toast.LENGTH_SHORT).show()
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val folderUri = Uri.parse(treeUriStr)
                 val rootFolder = DocumentFile.fromTreeUri(context, folderUri)
-                
-                // Nama file otomatis pake timestamp biar gak bentrok
-                val fileName = "Muy_DL_${System.currentTimeMillis()}.mp3"
                 val newFile = rootFolder?.createFile(mimeType, fileName)
 
                 if (newFile != null) {
                     val url = java.net.URL(fileUrl)
                     val connection = url.openConnection()
+                    connection.setRequestProperty("User-Agent", webView.settings.userAgentString)
                     connection.connect()
 
                     val inputStream = connection.getInputStream()
                     context.contentResolver.openOutputStream(newFile.uri)?.use { outputStream ->
-                        val buffer = ByteArray(4096)
-                        var bytesRead: Int
-                        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                            outputStream.write(buffer, 0, bytesRead)
-                        }
+                        inputStream.copyTo(outputStream)
                     }
 
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Selesai: $fileName", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Berhasil Simpan ke Folder Musik", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Gagal simpan file!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Download Gagal: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
         }

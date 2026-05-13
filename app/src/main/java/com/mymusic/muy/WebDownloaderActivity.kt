@@ -22,7 +22,7 @@ class WebDownloaderActivity : AppCompatActivity() {
         "https://m.youtube.com",
         "https://v4.www-y2mate.blog/en/youtube-to-mp3",
         "https://spotidown.app",
-        "https://vocalify.my.id/lyric-syrc.html",
+        "https://vocalify.my.id/lyric-sync.html",
         "https://google.com"
     )
 
