@@ -85,7 +85,7 @@ dependencies {
     implementation("androidx.documentfile:documentfile:1.0.1")
     
     // TAMBAHKAN BARIS INI:
-    implementation "androidx.webkit:webkit:1.11.0" 
+    implementation("androidx.webkit:webkit:1.11.0")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
