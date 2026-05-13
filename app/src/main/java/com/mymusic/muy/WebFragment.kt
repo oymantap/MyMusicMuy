@@ -91,35 +91,60 @@ class WebFragment : Fragment() {
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
 
+        // DAFTARKAN DUA JEMBATAN: Satu buat Share, Satu buat LRC/ZIP
         webView.addJavascriptInterface(WebShareBridge(requireContext()), "AndroidShare")
+        webView.addJavascriptInterface(object {
+            @JavascriptInterface
+            fun saveBlob(base64Data: String, mimeType: String, fileName: String) {
+                val fileData = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                saveFileDirectly(fileData, mimeType, fileName)
+            }
+        }, "BlobBridge")
         
         webView.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
                 progressBar.visibility = if (newProgress < 100) View.VISIBLE else View.GONE
                 progressBar.progress = newProgress
             }
-
-            // --- FITUR UPLOAD (Biar tombol upload di web jalan) ---
             override fun onShowFileChooser(webView: WebView?, callback: ValueCallback<Array<Uri>>?, params: FileChooserParams?): Boolean {
                 filePathCallback = callback
-                val intent = params?.createIntent()
-                fileChooserLauncher.launch(intent)
+                fileChooserLauncher.launch(params?.createIntent())
                 return true
             }
         }
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
-                val shareScript = """
+                // Suntik fungsi share
+                view?.evaluateJavascript("""
                     if (navigator.share === undefined) {
                         navigator.share = function(data) {
                             AndroidShare.share(data.title || 'Share', data.text || '', data.url || '');
                         };
                     }
-                """.trimIndent()
-                view?.evaluateJavascript(shareScript, null)
+                """.trimIndent(), null)
             }
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean = false
+        }
+    }
+
+    // Fungsi pembantu buat nyimpen data yang dilempar dari Web
+    private fun saveFileDirectly(data: ByteArray, mimeType: String, fileName: String) {
+        val context = requireContext()
+        val treeUriStr = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE).getString("last_folder", null) ?: return
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val rootFolder = DocumentFile.fromTreeUri(context, Uri.parse(treeUriStr))
+                val newFile = rootFolder?.createFile(mimeType, fileName)
+                newFile?.uri?.let { uri ->
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(data) }
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Selesai: $fileName", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) { Toast.makeText(context, "Gagal Simpan LRC!", Toast.LENGTH_SHORT).show() }
+            }
         }
     }
 
