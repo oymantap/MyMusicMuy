@@ -1,5 +1,6 @@
 package com.mymusic.muy
 
+import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -12,8 +13,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.webkit.*
 import android.widget.FrameLayout
-import android.widget.ProgressBar
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.NotificationCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.fragment.app.Fragment
@@ -31,6 +32,17 @@ class WebFragment : Fragment() {
     private lateinit var progressBar: LinearProgressIndicator
     private var targetUrl: String? = null
     private val CHANNEL_ID = "download_channel"
+    
+    // Callback buat Upload File
+    private var filePathCallback: ValueCallback<Array<Uri>>? = null
+    private val fileChooserLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            filePathCallback?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data))
+        } else {
+            filePathCallback?.onReceiveValue(null)
+        }
+        filePathCallback = null
+    }
 
     companion object {
         fun newInstance(url: String): WebFragment {
@@ -50,25 +62,18 @@ class WebFragment : Fragment() {
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         val root = FrameLayout(requireContext())
-        
-        // 1. Setup WebView
         webView = WebView(requireContext()).apply {
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         }
-        
-        // 2. Setup Progress Bar (Loadbar) di atas
         progressBar = LinearProgressIndicator(requireContext()).apply {
             layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 10)
             visibility = View.GONE
             trackCornerRadius = 5
         }
-
         setupWebView()
         setupDownloadLogic()
-        
         root.addView(webView)
         root.addView(progressBar)
-
         targetUrl?.let { webView.loadUrl(it) }
         return root
     }
@@ -80,6 +85,7 @@ class WebFragment : Fragment() {
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         settings.databaseEnabled = true
+        settings.allowFileAccess = true
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         
         CookieManager.getInstance().setAcceptCookie(true)
@@ -89,12 +95,16 @@ class WebFragment : Fragment() {
         
         webView.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                if (newProgress < 100) {
-                    progressBar.visibility = View.VISIBLE
-                    progressBar.progress = newProgress
-                } else {
-                    progressBar.visibility = View.GONE
-                }
+                progressBar.visibility = if (newProgress < 100) View.VISIBLE else View.GONE
+                progressBar.progress = newProgress
+            }
+
+            // --- FITUR UPLOAD (Biar tombol upload di web jalan) ---
+            override fun onShowFileChooser(webView: WebView?, callback: ValueCallback<Array<Uri>>?, params: FileChooserParams?): Boolean {
+                filePathCallback = callback
+                val intent = params?.createIntent()
+                fileChooserLauncher.launch(intent)
+                return true
             }
         }
 
@@ -130,94 +140,88 @@ class WebFragment : Fragment() {
             var fileName = URLUtil.guessFileName(url, contentDisposition, mimetype)
             val filters = listOf("(?i)spotidown\\.app\\s*-\\s*", "(?i)y2mate\\.com\\s*-\\s*", "(?i)y2mate\\.bz\\s*-\\s*")
             filters.forEach { pattern -> fileName = fileName.replace(pattern.toRegex(), "").trim() }
-
             if (fileName.endsWith(".bin") || fileName.length < 5) fileName = "Muy_DL_${System.currentTimeMillis()}.mp3"
-            downloadWithProgress(url, mimetype, fileName)
+            
+            // Ambil data di Main Thread sebelum masuk Coroutine
+            val currentUa = webView.settings.userAgentString
+            val currentUrl = webView.url ?: url
+            val cookies = CookieManager.getInstance().getCookie(url)
+            
+            Toast.makeText(requireContext(), "Mengunduh... cek notifikasi untuk status", Toast.LENGTH_SHORT).show()
+            downloadWithProgress(url, mimetype, fileName, currentUa, currentUrl, cookies)
         }
     }
 
-private fun downloadWithProgress(fileUrl: String, mimeType: String, fileName: String) {
-    val context = requireContext()
-    
-    // --- AMBIL DATA WEBVIEW DI SINI (MAIN THREAD) ---
-    val userAgent = webView.settings.userAgentString
-    val currentUrl = webView.url ?: fileUrl
-    val cookies = CookieManager.getInstance().getCookie(fileUrl)
-    // ------------------------------------------------
-    
-    val treeUriStr = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE)
-        .getString("last_folder", null)
+    private fun downloadWithProgress(fileUrl: String, mimeType: String, fileName: String, ua: String, ref: String, cookies: String?) {
+        val context = requireContext()
+        val treeUriStr = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE).getString("last_folder", null)
 
-    if (treeUriStr == null) {
-        Toast.makeText(context, "Folder musik belum diatur!", Toast.LENGTH_SHORT).show()
-        return
-    }
+        if (treeUriStr == null) {
+            Toast.makeText(context, "Folder musik belum diatur!", Toast.LENGTH_SHORT).show()
+            return
+        }
 
-    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-    val notificationId = System.currentTimeMillis().toInt()
-    val builder = NotificationCompat.Builder(context, CHANNEL_ID).apply {
-        setContentTitle("Mengunduh $fileName")
-        setSmallIcon(android.R.drawable.stat_sys_download)
-        setPriority(NotificationCompat.PRIORITY_LOW)
-        setOngoing(true)
-        setOnlyAlertOnce(true)
-    }
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationId = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID).apply {
+            setContentTitle("Mengunduh: $fileName")
+            setSmallIcon(android.R.drawable.stat_sys_download)
+            setPriority(NotificationCompat.PRIORITY_LOW)
+            setOngoing(true)
+            setOnlyAlertOnce(true)
+        }
 
-    lifecycleScope.launch(Dispatchers.IO) {
-        try {
-            val folderUri = Uri.parse(treeUriStr)
-            val rootFolder = DocumentFile.fromTreeUri(context, folderUri)
-            val newFile = rootFolder?.createFile(mimeType, fileName)
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val folderUri = Uri.parse(treeUriStr)
+                val rootFolder = DocumentFile.fromTreeUri(context, folderUri)
+                val newFile = rootFolder?.createFile(mimeType, fileName)
 
-            if (newFile != null) {
-                val url = URL(fileUrl)
-                val connection = url.openConnection() as HttpURLConnection
-                
-                // Pake variabel yang udah diambil di luar tadi
-                if (cookies != null) connection.setRequestProperty("Cookie", cookies)
-                connection.setRequestProperty("User-Agent", userAgent)
-                connection.setRequestProperty("Referer", currentUrl)
-                connection.setRequestProperty("Origin", "https://${URL(currentUrl).host}")
-                
-                connection.connectTimeout = 15000
-                connection.readTimeout = 15000
-                connection.connect()
+                if (newFile != null) {
+                    val url = URL(fileUrl)
+                    val connection = url.openConnection() as HttpURLConnection
+                    if (cookies != null) connection.setRequestProperty("Cookie", cookies)
+                    connection.setRequestProperty("User-Agent", ua)
+                    connection.setRequestProperty("Referer", ref)
+                    connection.connectTimeout = 15000
+                    connection.connect()
 
-                val fileLength = connection.contentLength
-                val inputStream = connection.inputStream
-                context.contentResolver.openOutputStream(newFile.uri)?.use { output ->
-                    val buffer = ByteArray(8192)
-                    var total: Long = 0
-                    var count: Int
-                    while (inputStream.read(buffer).also { count = it } != -1) {
-                        total += count
-                        output.write(buffer, 0, count)
-                        if (fileLength > 0) {
-                            val progress = (total * 100 / fileLength).toInt()
-                            builder.setProgress(100, progress, false).setContentText("$progress%")
-                            notificationManager.notify(notificationId, builder.build())
+                    val fileLength = connection.contentLength
+                    val inputStream = connection.inputStream
+                    context.contentResolver.openOutputStream(newFile.uri)?.use { output ->
+                        val buffer = ByteArray(8192)
+                        var total: Long = 0
+                        var count: Int
+                        while (inputStream.read(buffer).also { count = it } != -1) {
+                            total += count
+                            output.write(buffer, 0, count)
+                            if (fileLength > 0) {
+                                val progress = (total * 100 / fileLength).toInt()
+                                builder.setProgress(100, progress, false).setContentText("$progress%")
+                                notificationManager.notify(notificationId, builder.build())
+                            }
                         }
                     }
-                }
-                inputStream.close()
+                    inputStream.close()
 
-                withContext(Dispatchers.Main) {
-                    builder.setContentText("Selesai").setProgress(0, 0, false).setOngoing(false)
-                        .setSmallIcon(android.R.drawable.stat_sys_download_done)
-                    notificationManager.notify(notificationId, builder.build())
-                    Toast.makeText(context, "Selesai: $fileName", Toast.LENGTH_SHORT).show()
+                    withContext(Dispatchers.Main) {
+                        builder.setContentTitle("Selesai Mengunduh")
+                            .setContentText(fileName)
+                            .setProgress(0, 0, false)
+                            .setOngoing(false) // Bisa di-swipe sekarang
+                            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                        notificationManager.notify(notificationId, builder.build())
+                        Toast.makeText(context, "Berhasil: $fileName", Toast.LENGTH_SHORT).show()
+                    }
                 }
-            }
-        } catch (e: Exception) {
-            withContext(Dispatchers.Main) {
-                notificationManager.cancel(notificationId)
-                // Sekarang log error-nya lebih jelas
-                Toast.makeText(context, "Gagal: ${e.message}", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    notificationManager.cancel(notificationId)
+                    Toast.makeText(context, "Gagal: ${e.message}", Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
-}
-
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
