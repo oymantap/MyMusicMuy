@@ -110,7 +110,17 @@ UI dibuat dinamis, berubah sesuai lagu, bukan sekadar player statis.
 
 ---
 
-## 📦 INSTALLATION
+---
 
+## 📦 DOWNLOAD & INSTALL
+
+### 🚀 Latest Release
+[![Download APK](https://img.shields.io/github/v/release/oymantap/MyMusicMuy?label=Download%20APK&style=for-the-badge&color=orange)](https://github.com/oymantap/MyMusicMuy/releases/latest)
+
+> Klik badge di atas untuk langsung ke halaman download versi terbaru.
+
+---
+
+### 🛠️ Build from Source
 ```bash
-git clone https://github.com/oymantap/MyMusicMuy.git
+git clone [https://github.com/oymantap/MyMusicMuy.git](https://github.com/oymantap/MyMusicMuy.git)
