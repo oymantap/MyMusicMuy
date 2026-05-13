@@ -5,13 +5,14 @@
     android:layout_height="match_parent"
     android:background="#000000">
 
-    <!-- Header Section: Judul, Downloader, Stats, & Help -->
+    <!-- Header Section -->
+    <!-- Gue kasih tinggi tetap 60dp biar aman dan nggak tumpang tindih -->
     <RelativeLayout
         android:id="@+id/headerLayout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="60dp"
         android:paddingHorizontal="15dp"
-        android:paddingVertical="12dp">
+        android:background="#000000">
 
         <TextView
             android:id="@+id/appTitle"
@@ -26,20 +27,25 @@
 
         <LinearLayout
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:layout_alignParentEnd="true"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <!-- TOMBOL BARU: Buka WebView Downloader -->
+            <!-- TOMBOL BUMI (btnWebDownloader) -->
+            <!-- Ukuran luar 45dp (standar jempol), ukuran dalem tetep 30dp pake padding -->
+            <!-- Gue tambahin clickable="true" biar fiks bisa nerima klik -->
             <ImageButton
                 android:id="@+id/btnWebDownloader"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
-                android:layout_marginEnd="15dp"
+                android:layout_width="45dp"
+                android:layout_height="45dp"
+                android:layout_marginEnd="10dp"
+                android:padding="8dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_menu_browser"
                 android:scaleType="fitCenter"
+                android:clickable="true"
+                android:focusable="true"
                 app:tint="#FFFFFF" />
 
             <TextView
@@ -53,8 +59,9 @@
 
             <ImageButton
                 android:id="@+id/btnHelp"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:padding="5dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@android:drawable/ic_menu_help"
                 android:scaleType="fitCenter"
