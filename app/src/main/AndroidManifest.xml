@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- IZIN INTERNET (WAJIB ADA BUAT BUKA WEB) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -32,6 +36,14 @@
 
         <activity 
             android:name=".FullScreenPlayerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MyMusicMuy.NoActionBar">
+        </activity>
+
+        <!-- ACTIVITY BARU BUAT DOWNLOADER 6 TAB -->
+        <activity 
+            android:name=".WebDownloaderActivity"
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.MyMusicMuy.NoActionBar">
