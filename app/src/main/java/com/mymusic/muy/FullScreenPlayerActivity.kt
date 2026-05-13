@@ -185,13 +185,21 @@ private fun updateUI() {
   private fun startUpdateLoop() {
     handler.post(object : Runnable {
         override fun run() {
-            musicService?.let {
-                if (isBound && it.isPlaying()) {
-                    val current = it.getCurrentPos()
+            musicService?.let { service ->
+                if (isBound) {
+                    val current = service.getCurrentPos()
                     seekBar.progress = current
                     tvCurrentTime.text = formatTime(current)
+
+                    // AMBIL FRAGMENT LIRIK (Pake tag "f1" bawaan ViewPager2)
+                    val lyricsFragment = supportFragmentManager.findFragmentByTag("f1") as? LyricsFragment
+                    
+                    // KIRIM DURASI SEKARANG KE SISTEM CERDAS LIRIK
+                    // Kita panggil terus biar lirik nyesuaiin posisi biarpun lagu di-pause/seek
+                    lyricsFragment?.updateLyricsHighlight(current.toLong())
                 }
             }
+            // Tetap jalanin loop setiap 1 detik
             handler.postDelayed(this, 1000)
         }
     })
