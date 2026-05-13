@@ -1,11 +1,19 @@
 package com.mymusic.muy
 
+import android.content.Context
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.*
+import android.widget.Toast
+import androidx.documentfile.provider.DocumentFile
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class WebFragment : Fragment() {
 
@@ -30,6 +38,7 @@ class WebFragment : Fragment() {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         webView = WebView(requireContext())
         setupWebView()
+        setupDownloadLogic() // Aktifkan pendeteksi download
         targetUrl?.let { webView.loadUrl(it) }
         return webView
     }
@@ -38,44 +47,81 @@ class WebFragment : Fragment() {
         val settings = webView.settings
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
-        settings.databaseEnabled = true
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
-        
-        // Agar ringan
-        settings.cacheMode = WebSettings.LOAD_DEFAULT
         
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 
-                // --- PROSES SUNTIK / INJEKSI ---
-                // Kita hapus header/footer asli web mereka biar gak kelihatan promosi gratis
-                
-                val jsHideElements = """
+                // INJEKSI: Samarkan branding & Paksa Dark Mode
+                val jsHide = """
                     javascript:(function() { 
-                        // Hapus elemen header atau logo yang sering muncul
-                        var selectors = [
-                            'header', '.navbar', 'footer', '#header', '.logo', 
-                            '.ads-container', '.banner-ad'
-                        ];
-                        selectors.forEach(function(selector) {
-                            var elements = document.querySelectorAll(selector);
-                            elements.forEach(function(el) { el.style.display = 'none'; });
+                        var selectors = ['header', '.navbar', 'footer', '.logo', '.ads-container'];
+                        selectors.forEach(function(s) {
+                            var el = document.querySelectorAll(s);
+                            el.forEach(function(e) { e.style.display = 'none'; });
                         });
-                        
-                        // Khusus buat dark mode paksa biar masuk ke tema Muy
                         document.body.style.backgroundColor = '#000000';
                         document.body.style.color = '#FFFFFF';
                     })()
                 """.trimIndent()
-                
-                view?.loadUrl(jsHideElements)
+                view?.loadUrl(jsHide)
             }
+        }
+    }
 
-            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                // Biar tetep di dalam aplikasi, gak loncat ke Chrome
-                return false 
+    private fun setupDownloadLogic() {
+        webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
+            // Saat user klik tombol download di web, fungsi ini jalan
+            downloadToUserFolder(url, mimetype)
+        }
+    }
+
+    private fun downloadToUserFolder(fileUrl: String, mimeType: String) {
+        val context = requireContext()
+        val prefs = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE)
+        val treeUriStr = prefs.getString("last_folder", null)
+
+        if (treeUriStr == null) {
+            Toast.makeText(context, "Pilih folder musik dulu di halaman utama!", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        Toast.makeText(context, "Mulai mengunduh ke folder pilihan...", Toast.LENGTH_SHORT).show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val folderUri = Uri.parse(treeUriStr)
+                val rootFolder = DocumentFile.fromTreeUri(context, folderUri)
+                
+                // Nama file otomatis pake timestamp biar gak bentrok
+                val fileName = "Muy_DL_${System.currentTimeMillis()}.mp3"
+                val newFile = rootFolder?.createFile(mimeType, fileName)
+
+                if (newFile != null) {
+                    val url = java.net.URL(fileUrl)
+                    val connection = url.openConnection()
+                    connection.connect()
+
+                    val inputStream = connection.getInputStream()
+                    context.contentResolver.openOutputStream(newFile.uri)?.use { outputStream ->
+                        val buffer = ByteArray(4096)
+                        var bytesRead: Int
+                        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                            outputStream.write(buffer, 0, bytesRead)
+                        }
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Selesai: $fileName", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Gagal simpan file!", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
