@@ -136,79 +136,88 @@ class WebFragment : Fragment() {
         }
     }
 
-    private fun downloadWithProgress(fileUrl: String, mimeType: String, fileName: String) {
-        val context = requireContext()
-        val treeUriStr = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE).getString("last_folder", null)
+private fun downloadWithProgress(fileUrl: String, mimeType: String, fileName: String) {
+    val context = requireContext()
+    
+    // --- AMBIL DATA WEBVIEW DI SINI (MAIN THREAD) ---
+    val userAgent = webView.settings.userAgentString
+    val currentUrl = webView.url ?: fileUrl
+    val cookies = CookieManager.getInstance().getCookie(fileUrl)
+    // ------------------------------------------------
+    
+    val treeUriStr = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE)
+        .getString("last_folder", null)
 
-        if (treeUriStr == null) {
-            Toast.makeText(context, "Folder musik belum diatur!", Toast.LENGTH_SHORT).show()
-            return
-        }
+    if (treeUriStr == null) {
+        Toast.makeText(context, "Folder musik belum diatur!", Toast.LENGTH_SHORT).show()
+        return
+    }
 
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val notificationId = System.currentTimeMillis().toInt()
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID).apply {
-            setContentTitle("Mengunduh $fileName")
-            setSmallIcon(android.R.drawable.stat_sys_download)
-            setPriority(NotificationCompat.PRIORITY_LOW)
-            setOngoing(true)
-            setOnlyAlertOnce(true)
-        }
+    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    val notificationId = System.currentTimeMillis().toInt()
+    val builder = NotificationCompat.Builder(context, CHANNEL_ID).apply {
+        setContentTitle("Mengunduh $fileName")
+        setSmallIcon(android.R.drawable.stat_sys_download)
+        setPriority(NotificationCompat.PRIORITY_LOW)
+        setOngoing(true)
+        setOnlyAlertOnce(true)
+    }
 
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val folderUri = Uri.parse(treeUriStr)
-                val rootFolder = DocumentFile.fromTreeUri(context, folderUri)
-                val newFile = rootFolder?.createFile(mimeType, fileName)
+    lifecycleScope.launch(Dispatchers.IO) {
+        try {
+            val folderUri = Uri.parse(treeUriStr)
+            val rootFolder = DocumentFile.fromTreeUri(context, folderUri)
+            val newFile = rootFolder?.createFile(mimeType, fileName)
 
-                if (newFile != null) {
-                    val url = URL(fileUrl)
-                    val connection = url.openConnection() as HttpURLConnection
-                    
-                    // HEADER SAKTI: Biar server nggak ngeblokir
-                    val cookies = CookieManager.getInstance().getCookie(fileUrl)
-                    if (cookies != null) connection.setRequestProperty("Cookie", cookies)
-                    connection.setRequestProperty("User-Agent", webView.settings.userAgentString)
-                    connection.setRequestProperty("Referer", webView.url ?: fileUrl)
-                    connection.setRequestProperty("Origin", "https://${URL(webView.url ?: fileUrl).host}")
-                    connection.connectTimeout = 15000
-                    connection.readTimeout = 15000
-                    
-                    connection.connect()
+            if (newFile != null) {
+                val url = URL(fileUrl)
+                val connection = url.openConnection() as HttpURLConnection
+                
+                // Pake variabel yang udah diambil di luar tadi
+                if (cookies != null) connection.setRequestProperty("Cookie", cookies)
+                connection.setRequestProperty("User-Agent", userAgent)
+                connection.setRequestProperty("Referer", currentUrl)
+                connection.setRequestProperty("Origin", "https://${URL(currentUrl).host}")
+                
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
+                connection.connect()
 
-                    val fileLength = connection.contentLength
-                    val inputStream = connection.inputStream
-                    context.contentResolver.openOutputStream(newFile.uri)?.use { output ->
-                        val buffer = ByteArray(8192)
-                        var total: Long = 0
-                        var count: Int
-                        while (inputStream.read(buffer).also { count = it } != -1) {
-                            total += count
-                            output.write(buffer, 0, count)
-                            if (fileLength > 0) {
-                                val progress = (total * 100 / fileLength).toInt()
-                                builder.setProgress(100, progress, false).setContentText("$progress%")
-                                notificationManager.notify(notificationId, builder.build())
-                            }
+                val fileLength = connection.contentLength
+                val inputStream = connection.inputStream
+                context.contentResolver.openOutputStream(newFile.uri)?.use { output ->
+                    val buffer = ByteArray(8192)
+                    var total: Long = 0
+                    var count: Int
+                    while (inputStream.read(buffer).also { count = it } != -1) {
+                        total += count
+                        output.write(buffer, 0, count)
+                        if (fileLength > 0) {
+                            val progress = (total * 100 / fileLength).toInt()
+                            builder.setProgress(100, progress, false).setContentText("$progress%")
+                            notificationManager.notify(notificationId, builder.build())
                         }
                     }
-                    inputStream.close()
+                }
+                inputStream.close()
 
-                    withContext(Dispatchers.Main) {
-                        builder.setContentText("Selesai").setProgress(0, 0, false).setOngoing(false)
-                            .setSmallIcon(android.R.drawable.stat_sys_download_done)
-                        notificationManager.notify(notificationId, builder.build())
-                        Toast.makeText(context, "Selesai: $fileName", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    notificationManager.cancel(notificationId)
-                    Toast.makeText(context, "Gagal: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                    builder.setContentText("Selesai").setProgress(0, 0, false).setOngoing(false)
+                        .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                    notificationManager.notify(notificationId, builder.build())
+                    Toast.makeText(context, "Selesai: $fileName", Toast.LENGTH_SHORT).show()
                 }
+            }
+        } catch (e: Exception) {
+            withContext(Dispatchers.Main) {
+                notificationManager.cancel(notificationId)
+                // Sekarang log error-nya lebih jelas
+                Toast.makeText(context, "Gagal: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
     }
+}
+
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
