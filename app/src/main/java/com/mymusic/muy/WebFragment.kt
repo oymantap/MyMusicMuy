@@ -8,6 +8,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.util.Base64
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -33,7 +34,7 @@ class WebFragment : Fragment() {
     private var targetUrl: String? = null
     private val CHANNEL_ID = "download_channel"
     
-    // Callback buat Upload File
+    // Callback untuk Upload File
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private val fileChooserLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -62,18 +63,29 @@ class WebFragment : Fragment() {
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         val root = FrameLayout(requireContext())
+        
         webView = WebView(requireContext()).apply {
-            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
         }
+
         progressBar = LinearProgressIndicator(requireContext()).apply {
-            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 10)
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, 
+                15 // Ukuran sedikit lebih tebal agar terlihat
+            )
             visibility = View.GONE
             trackCornerRadius = 5
         }
+
         setupWebView()
         setupDownloadLogic()
+
         root.addView(webView)
         root.addView(progressBar)
+
         targetUrl?.let { webView.loadUrl(it) }
         return root
     }
@@ -86,18 +98,29 @@ class WebFragment : Fragment() {
         settings.loadWithOverviewMode = true
         settings.databaseEnabled = true
         settings.allowFileAccess = true
+        settings.allowContentAccess = true
+        settings.setSupportMultipleWindows(true)
+        settings.javaScriptCanOpenWindowsAutomatically = true
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
 
-        // DAFTARKAN DUA JEMBATAN: Satu buat Share, Satu buat LRC/ZIP
+        // JEMBATAN ANDROID
         webView.addJavascriptInterface(WebShareBridge(requireContext()), "AndroidShare")
         webView.addJavascriptInterface(object {
             @JavascriptInterface
             fun saveBlob(base64Data: String, mimeType: String, fileName: String) {
-                val fileData = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
-                saveFileDirectly(fileData, mimeType, fileName)
+                lifecycleScope.launch(Dispatchers.Default) {
+                    try {
+                        val fileData = Base64.decode(base64Data, Base64.DEFAULT)
+                        saveFileDirectly(fileData, mimeType, fileName)
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(requireContext(), "Error dekode data!", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
             }
         }, "BlobBridge")
         
@@ -106,7 +129,12 @@ class WebFragment : Fragment() {
                 progressBar.visibility = if (newProgress < 100) View.VISIBLE else View.GONE
                 progressBar.progress = newProgress
             }
-            override fun onShowFileChooser(webView: WebView?, callback: ValueCallback<Array<Uri>>?, params: FileChooserParams?): Boolean {
+
+            override fun onShowFileChooser(
+                webView: WebView?, 
+                callback: ValueCallback<Array<Uri>>?, 
+                params: FileChooserParams?
+            ): Boolean {
                 filePathCallback = callback
                 fileChooserLauncher.launch(params?.createIntent())
                 return true
@@ -115,7 +143,7 @@ class WebFragment : Fragment() {
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
-                // Suntik fungsi share
+                // Injeksi navigator.share agar web standar bisa memicu Android Share
                 view?.evaluateJavascript("""
                     if (navigator.share === undefined) {
                         navigator.share = function(data) {
@@ -124,14 +152,36 @@ class WebFragment : Fragment() {
                     }
                 """.trimIndent(), null)
             }
-            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean = false
+
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val url = request?.url.toString()
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    return false
+                }
+                // Menangani skema luar (intent, tel, whatsapp, dll)
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                    startActivity(intent)
+                    return true
+                } catch (e: Exception) {
+                    return false
+                }
+            }
         }
     }
 
-    // Fungsi pembantu buat nyimpen data yang dilempar dari Web
     private fun saveFileDirectly(data: ByteArray, mimeType: String, fileName: String) {
         val context = requireContext()
-        val treeUriStr = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE).getString("last_folder", null) ?: return
+        val prefs = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE)
+        val treeUriStr = prefs.getString("last_folder", null) 
+
+        if (treeUriStr == null) {
+            lifecycleScope.launch(Dispatchers.Main) {
+                Toast.makeText(context, "Folder tujuan belum diatur di setelan!", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val rootFolder = DocumentFile.fromTreeUri(context, Uri.parse(treeUriStr))
@@ -139,11 +189,13 @@ class WebFragment : Fragment() {
                 newFile?.uri?.let { uri ->
                     context.contentResolver.openOutputStream(uri)?.use { it.write(data) }
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Selesai: $fileName", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Berhasil simpan: $fileName", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) { Toast.makeText(context, "Gagal Simpan LRC!", Toast.LENGTH_SHORT).show() }
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Gagal simpan file ke storage!", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -163,37 +215,56 @@ class WebFragment : Fragment() {
     private fun setupDownloadLogic() {
         webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
             var fileName = URLUtil.guessFileName(url, contentDisposition, mimetype)
-            val filters = listOf("(?i)spotidown\\.app\\s*-\\s*", "(?i)y2mate\\.com\\s*-\\s*", "(?i)y2mate\\.bz\\s*-\\s*")
+            
+            // Membersihkan nama file dari sampah website downloader
+            val filters = listOf(
+                "(?i)spotidown\\.app\\s*-\\s*", 
+                "(?i)y2mate\\.com\\s*-\\s*", 
+                "(?i)y2mate\\.bz\\s*-\\s*"
+            )
             filters.forEach { pattern -> fileName = fileName.replace(pattern.toRegex(), "").trim() }
-            if (fileName.endsWith(".bin") || fileName.length < 5) fileName = "Muy_DL_${System.currentTimeMillis()}.mp3"
             
-            // Ambil data di Main Thread sebelum masuk Coroutine
-            val currentUa = webView.settings.userAgentString
-            val currentUrl = webView.url ?: url
+            if (fileName.endsWith(".bin") || fileName.length < 5) {
+                fileName = "Muy_DL_${System.currentTimeMillis()}.mp3"
+            }
+            
             val cookies = CookieManager.getInstance().getCookie(url)
+            val finalUserAgent = webView.settings.userAgentString
+            val referer = webView.url ?: url
             
-            Toast.makeText(requireContext(), "Mengunduh... cek notifikasi untuk status", Toast.LENGTH_SHORT).show()
-            downloadWithProgress(url, mimetype, fileName, currentUa, currentUrl, cookies)
+            Toast.makeText(requireContext(), "Mulai mengunduh file...", Toast.LENGTH_SHORT).show()
+            downloadWithProgress(url, mimetype, fileName, finalUserAgent, referer, cookies)
         }
     }
 
-    private fun downloadWithProgress(fileUrl: String, mimeType: String, fileName: String, ua: String, ref: String, cookies: String?) {
+    private fun downloadWithProgress(
+        fileUrl: String, 
+        mimeType: String, 
+        fileName: String, 
+        ua: String, 
+        ref: String, 
+        cookies: String?
+    ) {
         val context = requireContext()
-        val treeUriStr = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE).getString("last_folder", null)
+        val prefs = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE)
+        val treeUriStr = prefs.getString("last_folder", null)
 
         if (treeUriStr == null) {
-            Toast.makeText(context, "Folder musik belum diatur!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Atur folder penyimpanan dulu!", Toast.LENGTH_SHORT).show()
             return
         }
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notificationId = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
+        
         val builder = NotificationCompat.Builder(context, CHANNEL_ID).apply {
-            setContentTitle("Mengunduh: $fileName")
+            setContentTitle("Muy Downloader")
+            setContentText("Menyiapkan: $fileName")
             setSmallIcon(android.R.drawable.stat_sys_download)
             setPriority(NotificationCompat.PRIORITY_LOW)
             setOngoing(true)
             setOnlyAlertOnce(true)
+            setProgress(100, 0, true)
         }
 
         lifecycleScope.launch(Dispatchers.IO) {
@@ -205,44 +276,63 @@ class WebFragment : Fragment() {
                 if (newFile != null) {
                     val url = URL(fileUrl)
                     val connection = url.openConnection() as HttpURLConnection
-                    if (cookies != null) connection.setRequestProperty("Cookie", cookies)
+                    
+                    if (!cookies.isNullOrEmpty()) connection.setRequestProperty("Cookie", cookies)
                     connection.setRequestProperty("User-Agent", ua)
                     connection.setRequestProperty("Referer", ref)
                     connection.connectTimeout = 15000
+                    connection.readTimeout = 15000
                     connection.connect()
+
+                    if (connection.responseCode !in 200..299) {
+                        throw Exception("Server merespon error: ${connection.responseCode}")
+                    }
 
                     val fileLength = connection.contentLength
                     val inputStream = connection.inputStream
+                    
                     context.contentResolver.openOutputStream(newFile.uri)?.use { output ->
                         val buffer = ByteArray(8192)
                         var total: Long = 0
                         var count: Int
+                        var lastProgressUpdate = 0L
+
                         while (inputStream.read(buffer).also { count = it } != -1) {
                             total += count
                             output.write(buffer, 0, count)
-                            if (fileLength > 0) {
-                                val progress = (total * 100 / fileLength).toInt()
-                                builder.setProgress(100, progress, false).setContentText("$progress%")
+                            
+                            // Update notifikasi setiap 500ms agar tidak membebani sistem
+                            if (System.currentTimeMillis() - lastProgressUpdate > 500) {
+                                if (fileLength > 0) {
+                                    val progress = (total * 100 / fileLength).toInt()
+                                    builder.setProgress(100, progress, false)
+                                        .setContentText("Mengunduh: $progress% ($fileName)")
+                                } else {
+                                    builder.setProgress(100, 0, true)
+                                        .setContentText("Mengunduh: ${(total/1024)} KB")
+                                }
                                 notificationManager.notify(notificationId, builder.build())
+                                lastProgressUpdate = System.currentTimeMillis()
                             }
                         }
                     }
                     inputStream.close()
+                    connection.disconnect()
 
                     withContext(Dispatchers.Main) {
                         builder.setContentTitle("Selesai Mengunduh")
                             .setContentText(fileName)
                             .setProgress(0, 0, false)
-                            .setOngoing(false) // Bisa di-swipe sekarang
+                            .setOngoing(false)
                             .setSmallIcon(android.R.drawable.stat_sys_download_done)
                         notificationManager.notify(notificationId, builder.build())
-                        Toast.makeText(context, "Berhasil: $fileName", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Selesai: $fileName", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     notificationManager.cancel(notificationId)
-                    Toast.makeText(context, "Gagal: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Gagal download: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -250,7 +340,12 @@ class WebFragment : Fragment() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "Download Progress", NotificationManager.IMPORTANCE_LOW)
+            val name = "Download Progress"
+            val descriptionText = "Notifikasi untuk status pengunduhan Muy"
+            val importance = NotificationManager.IMPORTANCE_LOW
+            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+                description = descriptionText
+            }
             val notificationManager = requireContext().getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }

@@ -1,6 +1,8 @@
 package com.mymusic.muy
 
 import android.os.Bundle
+import android.widget.ImageButton
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.viewpager2.adapter.FragmentStateAdapter
@@ -12,11 +14,7 @@ class WebDownloaderActivity : AppCompatActivity() {
 
     private lateinit var tabLayout: TabLayout
     private lateinit var viewPager: ViewPager2
-
-    // Daftar Judul Tab yang sudah di-samarkan (No Promosi Gratis)
     private val tabs = listOf("Spotify", "YouTube", "YTDown", "SPDown", "Vocalify", "Lainnya")
-    
-    // URL tetap mengarah ke mesin pencarinya
     private val urls = listOf(
         "https://open.spotify.com",
         "https://m.youtube.com",
@@ -32,26 +30,38 @@ class WebDownloaderActivity : AppCompatActivity() {
 
         tabLayout = findViewById(R.id.tabLayout)
         viewPager = findViewById(R.id.viewPager)
+        val btnResetHome: ImageButton = findViewById(R.id.btnResetHome)
 
-        // Set Adapter
         viewPager.adapter = WebPagerAdapter(this, urls)
-        
-        // Simpan state 5 tab di latar belakang biar gak reload terus
         viewPager.offscreenPageLimit = 5 
 
-        // Hubungkan Tab dengan ViewPager
         TabLayoutMediator(tabLayout, viewPager) { tab, position ->
             tab.text = tabs[position]
         }.attach()
+
+        // Tombol Panah di Header: Balik ke URL awal tab tersebut
+        btnResetHome.setOnClickListener {
+            val currentFragment = supportFragmentManager.findFragmentByTag("f${viewPager.currentItem}") as? WebFragment
+            currentFragment?.resetToHome()
+        }
+
+        // Handle Tombol Back HP
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val currentFragment = supportFragmentManager.findFragmentByTag("f${viewPager.currentItem}") as? WebFragment
+                if (currentFragment?.canGoBack() == true) {
+                    currentFragment.goBack()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
     }
 
     private inner class WebPagerAdapter(activity: AppCompatActivity, private val urlList: List<String>) : 
         FragmentStateAdapter(activity) {
-        
         override fun getItemCount(): Int = urlList.size
-
-        override fun createFragment(position: Int): Fragment {
-            return WebFragment.newInstance(urlList[position])
-        }
+        override fun createFragment(position: Int): Fragment = WebFragment.newInstance(urlList[position])
     }
 }
