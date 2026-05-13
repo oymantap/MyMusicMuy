@@ -11,19 +11,24 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.*
+import android.widget.FrameLayout
+import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
+import java.net.URL
 
 class WebFragment : Fragment() {
 
     private lateinit var webView: WebView
+    private lateinit var progressBar: LinearProgressIndicator
     private var targetUrl: String? = null
     private val CHANNEL_ID = "download_channel"
 
@@ -44,11 +49,28 @@ class WebFragment : Fragment() {
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        webView = WebView(requireContext())
+        val root = FrameLayout(requireContext())
+        
+        // 1. Setup WebView
+        webView = WebView(requireContext()).apply {
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        }
+        
+        // 2. Setup Progress Bar (Loadbar) di atas
+        progressBar = LinearProgressIndicator(requireContext()).apply {
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 10)
+            visibility = View.GONE
+            trackCornerRadius = 5
+        }
+
         setupWebView()
         setupDownloadLogic()
+        
+        root.addView(webView)
+        root.addView(progressBar)
+
         targetUrl?.let { webView.loadUrl(it) }
-        return webView
+        return root
     }
 
     private fun setupWebView() {
@@ -60,23 +82,28 @@ class WebFragment : Fragment() {
         settings.databaseEnabled = true
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         
-        // 1. DUKUNGAN COOKIE (Biar download kaga gagal mulu)
-        val cookieManager = CookieManager.getInstance()
-        cookieManager.setAcceptCookie(true)
-        cookieManager.setAcceptThirdPartyCookies(webView, true)
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
 
-        // 2. JEMBATAN SHARE API (Biar tombol Share di Spotify/Web jalan)
         webView.addJavascriptInterface(WebShareBridge(requireContext()), "AndroidShare")
         
-        // Inject script buat nge-redirect navigator.share ke jembatan kita
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                if (newProgress < 100) {
+                    progressBar.visibility = View.VISIBLE
+                    progressBar.progress = newProgress
+                } else {
+                    progressBar.visibility = View.GONE
+                }
+            }
+        }
+
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 val shareScript = """
                     if (navigator.share === undefined) {
                         navigator.share = function(data) {
-                            if (data.url || data.text) {
-                                AndroidShare.share(data.title || 'Share', data.text || '', data.url || '');
-                            }
+                            AndroidShare.share(data.title || 'Share', data.text || '', data.url || '');
                         };
                     }
                 """.trimIndent()
@@ -84,21 +111,8 @@ class WebFragment : Fragment() {
             }
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean = false
         }
-
-        // 3. LONG PRESS UNTUK SALIN LINK (Cadangan)
-        webView.setOnLongClickListener {
-            val url = webView.url
-            if (url != null) {
-                val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                val clip = android.content.ClipData.newPlainText("URL", url)
-                clipboard.setPrimaryClip(clip)
-                Toast.makeText(requireContext(), "Link disalin!", Toast.LENGTH_SHORT).show()
-            }
-            true
-        }
     }
 
-    // Class Internal untuk menangani Share dari JavaScript
     class WebShareBridge(private val context: Context) {
         @JavascriptInterface
         fun share(title: String, text: String, url: String) {
@@ -114,29 +128,17 @@ class WebFragment : Fragment() {
     private fun setupDownloadLogic() {
         webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
             var fileName = URLUtil.guessFileName(url, contentDisposition, mimetype)
-            
-            val filters = listOf(
-                "(?i)spotidown\\.app\\s*-\\s*",
-                "(?i)y2mate\\.com\\s*-\\s*",
-                "(?i)y2mate\\.bz\\s*-\\s*",
-                "(?i)spotifydown\\.com\\s*-\\s*"
-            )
-            filters.forEach { pattern ->
-                fileName = fileName.replace(pattern.toRegex(), "").trim()
-            }
+            val filters = listOf("(?i)spotidown\\.app\\s*-\\s*", "(?i)y2mate\\.com\\s*-\\s*", "(?i)y2mate\\.bz\\s*-\\s*")
+            filters.forEach { pattern -> fileName = fileName.replace(pattern.toRegex(), "").trim() }
 
-            if (fileName.endsWith(".bin") || fileName.length < 5) {
-                fileName = "Muy_DL_${System.currentTimeMillis()}.mp3"
-            }
-            
+            if (fileName.endsWith(".bin") || fileName.length < 5) fileName = "Muy_DL_${System.currentTimeMillis()}.mp3"
             downloadWithProgress(url, mimetype, fileName)
         }
     }
 
     private fun downloadWithProgress(fileUrl: String, mimeType: String, fileName: String) {
         val context = requireContext()
-        val treeUriStr = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE)
-            .getString("last_folder", null)
+        val treeUriStr = context.getSharedPreferences("MusicPrefs", Context.MODE_PRIVATE).getString("last_folder", null)
 
         if (treeUriStr == null) {
             Toast.makeText(context, "Folder musik belum diatur!", Toast.LENGTH_SHORT).show()
@@ -147,7 +149,6 @@ class WebFragment : Fragment() {
         val notificationId = System.currentTimeMillis().toInt()
         val builder = NotificationCompat.Builder(context, CHANNEL_ID).apply {
             setContentTitle("Mengunduh $fileName")
-            setContentText("Sedang mengunduh...")
             setSmallIcon(android.R.drawable.stat_sys_download)
             setPriority(NotificationCompat.PRIORITY_LOW)
             setOngoing(true)
@@ -161,41 +162,40 @@ class WebFragment : Fragment() {
                 val newFile = rootFolder?.createFile(mimeType, fileName)
 
                 if (newFile != null) {
-                    val url = java.net.URL(fileUrl)
+                    val url = URL(fileUrl)
                     val connection = url.openConnection() as HttpURLConnection
                     
-                    // KIRIM COOKIE & USER AGENT (Anti Gagal Download)
+                    // HEADER SAKTI: Biar server nggak ngeblokir
                     val cookies = CookieManager.getInstance().getCookie(fileUrl)
                     if (cookies != null) connection.setRequestProperty("Cookie", cookies)
                     connection.setRequestProperty("User-Agent", webView.settings.userAgentString)
-                    connection.setRequestProperty("Referer", webView.url)
+                    connection.setRequestProperty("Referer", webView.url ?: fileUrl)
+                    connection.setRequestProperty("Origin", "https://${URL(webView.url ?: fileUrl).host}")
+                    connection.connectTimeout = 15000
+                    connection.readTimeout = 15000
                     
                     connection.connect()
 
                     val fileLength = connection.contentLength
                     val inputStream = connection.inputStream
-                    val outputStream = context.contentResolver.openOutputStream(newFile.uri)
-
-                    if (outputStream != null) {
-                        val buffer = ByteArray(4096)
+                    context.contentResolver.openOutputStream(newFile.uri)?.use { output ->
+                        val buffer = ByteArray(8192)
                         var total: Long = 0
                         var count: Int
                         while (inputStream.read(buffer).also { count = it } != -1) {
                             total += count
-                            outputStream.write(buffer, 0, count)
+                            output.write(buffer, 0, count)
                             if (fileLength > 0) {
                                 val progress = (total * 100 / fileLength).toInt()
-                                builder.setProgress(100, progress, false)
-                                builder.setContentText("$progress%")
+                                builder.setProgress(100, progress, false).setContentText("$progress%")
                                 notificationManager.notify(notificationId, builder.build())
                             }
                         }
-                        outputStream.close()
                     }
                     inputStream.close()
 
                     withContext(Dispatchers.Main) {
-                        builder.setContentText("Unduhan Selesai").setProgress(0, 0, false).setOngoing(false)
+                        builder.setContentText("Selesai").setProgress(0, 0, false).setOngoing(false)
                             .setSmallIcon(android.R.drawable.stat_sys_download_done)
                         notificationManager.notify(notificationId, builder.build())
                         Toast.makeText(context, "Selesai: $fileName", Toast.LENGTH_SHORT).show()
@@ -204,7 +204,7 @@ class WebFragment : Fragment() {
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     notificationManager.cancel(notificationId)
-                    Toast.makeText(context, "Download Gagal!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Gagal: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
                 }
             }
         }
