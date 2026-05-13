@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:background="#000000">
 
-    <!-- Header Section: Judul, Stats, & Help -->
+    <!-- Header Section: Judul, Downloader, Stats, & Help -->
     <RelativeLayout
         android:id="@+id/headerLayout"
         android:layout_width="match_parent"
@@ -30,6 +30,17 @@
             android:layout_alignParentEnd="true"
             android:gravity="center_vertical"
             android:orientation="horizontal">
+
+            <!-- TOMBOL BARU: Buka WebView Downloader -->
+            <ImageButton
+                android:id="@+id/btnWebDownloader"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginEnd="15dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_browser"
+                android:scaleType="fitCenter"
+                app:tint="#FFFFFF" />
 
             <TextView
                 android:id="@+id/tvStats"
