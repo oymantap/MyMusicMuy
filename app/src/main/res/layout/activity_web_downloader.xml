@@ -6,7 +6,7 @@
     android:background="#000000"
     android:orientation="vertical">
 
-    <!-- Header Simpel -->
+    <!-- Header dengan Tombol Home di Kanan -->
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="56dp"
@@ -20,9 +20,18 @@
             android:textColor="#FFFFFF"
             android:textSize="18sp"
             android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/btnResetHome"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_revert"
+            app:tint="#FFFFFF" />
     </RelativeLayout>
 
-    <!-- Tab yang bisa digeser kalau penuh -->
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabLayout"
         android:layout_width="match_parent"
@@ -33,7 +42,6 @@
         app:tabIndicatorColor="#FFFFFF"
         android:background="#121212"/>
 
-    <!-- Wadah buat WebView-nya -->
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/viewPager"
         android:layout_width="match_parent"
