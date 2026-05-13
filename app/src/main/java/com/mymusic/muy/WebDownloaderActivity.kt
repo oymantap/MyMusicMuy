@@ -14,7 +14,6 @@ class WebDownloaderActivity : AppCompatActivity() {
 
     private lateinit var tabLayout: TabLayout
     private lateinit var viewPager: ViewPager2
-    private lateinit var adapter: WebPagerAdapter // Simpan sebagai variabel class
     
     private val tabs = listOf("Spotify", "YouTube", "YTDown", "SPDown", "Vocalify", "Lainnya")
     private val urls = listOf(
@@ -34,29 +33,27 @@ class WebDownloaderActivity : AppCompatActivity() {
         viewPager = findViewById(R.id.viewPager)
         val btnResetHome: ImageButton = findViewById(R.id.btnResetHome)
 
-        // Inisialisasi adapter
-        adapter = WebPagerAdapter(this, urls)
-        viewPager.adapter = adapter
+        viewPager.adapter = WebPagerAdapter(this, urls)
+        // Menjaga agar fragment tidak hancur saat pindah tab
         viewPager.offscreenPageLimit = tabs.size 
 
         TabLayoutMediator(tabLayout, viewPager) { tab, position ->
             tab.text = tabs[position]
         }.attach()
 
-        // Perbaikan: Ambil fragment yang sedang aktif lewat adapter
+        // Fungsi Reset ke URL Awal
         btnResetHome.setOnClickListener {
-            val currentFragment = adapter.getFragment(viewPager.currentItem)
-            currentFragment?.resetToHome()
+            getCurrentFragment()?.resetToHome()
         }
 
-        // Perbaikan: Handle Back HP lewat adapter
+        // Handle navigasi tombol back HP
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                val currentFragment = adapter.getFragment(viewPager.currentItem)
-                if (currentFragment?.canGoBack() == true) {
-                    currentFragment.goBack()
+                val currentFrag = getCurrentFragment()
+                if (currentFrag?.canGoBack() == true) {
+                    currentFrag.goBack()
                 } else {
-                    // Jika tidak bisa back lagi, matikan callback ini dan biarkan sistem menghandle (keluar aplikasi)
+                    // Jika web tidak bisa back, biarkan sistem menutup activity
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
                 }
@@ -64,23 +61,14 @@ class WebDownloaderActivity : AppCompatActivity() {
         })
     }
 
-    // Adapter yang bisa menyimpan referensi Fragment secara otomatis
+    // Fungsi untuk mendapatkan fragment aktif di ViewPager2 secara akurat
+    private fun getCurrentFragment(): WebFragment? {
+        return supportFragmentManager.findFragmentByTag("f${viewPager.currentItem}") as? WebFragment
+    }
+
     private inner class WebPagerAdapter(activity: AppCompatActivity, private val urlList: List<String>) : 
         FragmentStateAdapter(activity) {
-        
-        private val fragmentMap = mutableMapOf<Int, WebFragment>()
-
         override fun getItemCount(): Int = urlList.size
-
-        override fun createFragment(position: Int): Fragment {
-            val fragment = WebFragment.newInstance(urlList[position])
-            fragmentMap[position] = fragment
-            return fragment
-        }
-
-        // Fungsi pembantu untuk mengambil fragment berdasarkan posisi
-        fun getFragment(position: Int): WebFragment? {
-            return fragmentMap[position]
-        }
+        override fun createFragment(position: Int): Fragment = WebFragment.newInstance(urlList[position])
     }
 }
