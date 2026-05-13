@@ -38,7 +38,7 @@
                 android:layout_height="30dp"
                 android:layout_marginEnd="15dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@android:drawable/ic_menu_browser"
+                android:src="@drawable/ic_menu_browser"
                 android:scaleType="fitCenter"
                 app:tint="#FFFFFF" />
 
