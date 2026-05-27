@@ -1,44 +1,214 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000"
-    android:padding="16dp">
+    android:background="#121214">
 
-    <TextView
-        android:id="@+id/appTitle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="MyMusicMuy"
-        android:textColor="#1ED760"
-        android:textSize="28sp"
-        android:textStyle="bold" />
+    <RelativeLayout
+        android:id="@+id/headerLayout"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:paddingHorizontal="16dp"
+        android:background="#121214">
 
-    <FrameLayout
-        android:id="@+id/musicListContainer"
+        <TextView
+            android:id="@+id/appTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="MyMusicMuy"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp" 
+            android:textStyle="bold"
+            android:letterSpacing="0.02"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"/>
+
+        <ImageButton
+            android:id="@+id/btnHelp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:padding="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_help"
+            android:scaleType="fitCenter"
+            app:tint="#88FFFFFF" />
+
+        <ImageButton
+            android:id="@+id/btnWebDownloader"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_toStartOf="@id/btnHelp"
+            android:layout_marginEnd="4dp"
+            android:layout_centerVertical="true"
+            android:padding="9dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_menu_browser"
+            android:scaleType="fitCenter"
+            android:clickable="true"
+            android:focusable="true"
+            app:tint="#00E5FF" />
+
+        <TextView
+            android:id="@+id/tvStats"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_toEndOf="@id/appTitle"
+            android:layout_toStartOf="@id/btnWebDownloader"
+            android:layout_centerVertical="true"
+            android:layout_marginHorizontal="10dp"
+            android:gravity="end|center_vertical"
+            android:text="M: 0 | S: 0MB"
+            android:textColor="#66FFFFFF"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-monospace"/>
+
+    </RelativeLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewMusic"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/appTitle"
-        android:layout_marginTop="24dp"
-        android:layout_above="@+id/btnPickFolder"
-        android:layout_marginBottom="16dp"
-        android:background="@drawable/bg_glass_card"
-        android:padding="8dp">
+        android:layout_below="@id/headerLayout"
+        android:layout_above="@+id/miniPlayer"
+        android:paddingVertical="4dp"
+        android:clipToPadding="false"/>
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recyclerViewMusic"
+    <ProgressBar
+        android:id="@+id/loadingAnim"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_centerInParent="true"
+        android:indeterminateTint="#00E5FF"
+        android:elevation="10dp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/miniPlayer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/btnPickFolder"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/bg_glass_card"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:elevation="4dp"
+        android:visibility="gone">
+
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <androidx.cardview.widget.CardView
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                app:cardCornerRadius="10dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#1AFFFFFF">
+                <ImageView
+                    android:id="@+id/miniCover"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop" />
+            </androidx.cardview.widget.CardView>
+
+            <TextView
+                android:id="@+id/miniTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="14dp"
+                android:layout_marginEnd="8dp"
+                android:ellipsize="marquee"
+                android:marqueeRepeatLimit="marquee_forever"
+                android:singleLine="true"
+                android:scrollHorizontally="true"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <ImageButton
+                android:id="@+id/btnPlayPause"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:padding="6dp"
+                android:layout_marginEnd="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:scaleType="fitCenter"
+                app:tint="#00E5FF" />
+
+            <ImageButton
+                android:id="@+id/btnCloseMini"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:padding="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                android:scaleType="fitCenter"
+                app:tint="#4DFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="10dp"
+            android:paddingHorizontal="2dp">
             
-    </FrameLayout>
+            <TextView
+                android:id="@+id/tvCurrentTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="00:00"
+                android:textColor="#66FFFFFF"
+                android:textSize="10sp"
+                android:fontFamily="sans-serif-monospace"/>
+
+            <SeekBar
+                android:id="@+id/seekBar"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:progressTint="#00E5FF"
+                android:thumbTint="#00E5FF"
+                android:maxHeight="3dp"
+                android:minHeight="3dp" />
+
+            <TextView
+                android:id="@+id/tvTotalTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="00:00"
+                android:textColor="#66FFFFFF"
+                android:textSize="10sp"
+                android:fontFamily="sans-serif-monospace"/>
+        </LinearLayout>
+    </LinearLayout>
 
     <Button
         android:id="@+id/btnPickFolder"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="48dp"
         android:layout_alignParentBottom="true"
-        android:backgroundTint="#1ED760"
-        android:text="Pilih Folder Musik"
-        android:textColor="#FFFFFF" />
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="16dp"
+        android:text="+ PILIH FOLDER"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:textColor="#121214"
+        android:backgroundTint="#00E5FF"
+        android:letterSpacing="0.05"
+        android:elevation="2dp"
+        app:cornerRadius="14dp"/>
 
 </RelativeLayout>

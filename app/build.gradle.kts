@@ -17,8 +17,22 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Konfigurasi tanda tangan APK (Keystore)
+    signingConfigs {
+        create("release") {
+            // File release.jks akan dibuat otomatis oleh GitHub Actions dari Secret
+            storeFile = file("release.jks") 
+            storePassword = System.getenv("RELEASE_STORE_PASSWORD")
+            keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+            keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
+            // Pakai konfigurasi signing "release" yang dibuat di atas
+            signingConfig = signingConfigs.getByName("release")
+            
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -26,25 +40,53 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
+    // Tetap pakai jvmTarget = "11" agar kompatibel dengan plugin lu sekarang
     kotlinOptions {
         jvmTarget = "11"
     }
+
     buildFeatures {
         viewBinding = true
     }
 }
 
 dependencies {
+    // Library standar dari Version Catalog
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
     implementation(libs.material)
+    
+    // Fitur Baru FSP (WAJIB PAKAI TANDA KURUNG)
+    implementation("androidx.palette:palette-ktx:1.0.0")
+    implementation("androidx.viewpager2:viewpager2:1.1.0")
+    
+    // Media & Glide
+    implementation("androidx.media:media:1.7.0")
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+    annotationProcessor("com.github.bumptech.glide:compiler:4.16.0")
+
+   // --- TAMBAHKAN INI (BENSIN UNTUK LIRIK & ASYNC) ---
+    // Buat lifecycleScope (Biar kaga Unresolved reference 'lifecycleScope')
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    
+    // Buat Coroutines (Biar kaga Unresolved reference 'Dispatchers')
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    
+    // Buat DocumentFile (Biar kaga Unresolved reference 'DocumentFile')
+    implementation("androidx.documentfile:documentfile:1.0.1")
+    
+    // TAMBAHKAN BARIS INI:
+    implementation("androidx.webkit:webkit:1.11.0")
+    
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
