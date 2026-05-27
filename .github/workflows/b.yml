@@ -21,22 +21,24 @@ jobs:
         java-version: '17'
         cache: 'gradle'
 
-    # Langkah opsional jika lu mau nge-decode Keystore jks lu dari GitHub Secrets
-    # - name: Decode Keystore
-    #   run: echo "${{ secrets.RELEASE_KEY_BASE64 }}" | base64 --decode > app/release.jks
+    # 1. AKTIFKAN INI: Mengambil keystore dari Secret KEYSTORE_FILE milikmu
+    - name: Decode Keystore
+      run: echo "${{ secrets.KEYSTORE_FILE }}" | base64 --decode > app/release.jks
 
     - name: Grant Execute Permission for Gradle
       run: chmod +x gradlew
 
+    # 2. SESUAIKAN NAMA ENV: Disamakan persis dengan nama di GitHub Secrets kamu
     - name: Build Release APK
       env:
-        RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
-        RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-        RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: ./gradlew assembleRelease
 
     - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact**@v4**
       with:
         name: MyMusicMuy
-        path: app/build/outputs/apk/release/app-release.apk # atau app-release.apk jika keystore aktif
+        path: app/build/outputs/apk/release/app-release.apk
+
