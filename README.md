@@ -1,7 +1,7 @@
 # 🎵 MyMusicMuy (MMM) 🎵
 
 <p align="center">
-  <img src="app/src/main/res/drawable/ic_play" alt="MyMusicMuy Logo" width="120" height="120" style="border-radius: 50%;" />
+  <img src="app/src/main/res/drawable-xxhdpi/logo.webp" alt="MyMusicMuy Logo" width="120" height="120" style="border-radius: 50%;" />
 </p>
 
 <p align="center">
@@ -56,5 +56,5 @@ You can easily set up, compile, and build the source files manually either on st
 ### 1️⃣ Clone the Repository
 Open your preferred terminal application and execute:
 ```bash
-git clone [https://github.com/YOUR_GITHUB_USERNAME/MyMusicMuy.git](https://github.com/YOUR_GITHUB_USERNAME/MyMusicMuy.git)
+git clone https://github.com/oymantal/MyMusicMuy.git
 cd MyMusicMuy
