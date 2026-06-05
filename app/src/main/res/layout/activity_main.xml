@@ -102,7 +102,7 @@
         <ImageView
             android:layout_width="80dp"
             android:layout_height="80dp"
-            android:src="@android:drawable/ic_dark_gray_action_modes_share"
+            android:src="@android:drawable/ic_menu_share"
             app:tint="#3300E5FF" />
 
         <TextView
@@ -250,3 +250,4 @@
         app:cornerRadius="14dp"/>
 
 </RelativeLayout>
+
