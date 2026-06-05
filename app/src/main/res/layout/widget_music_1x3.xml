@@ -26,4 +26,5 @@
         android:background="@android:color/transparent"
         android:scaleType="fitCenter"
         android:src="@drawable/ic_play" />
+
 </RelativeLayout>

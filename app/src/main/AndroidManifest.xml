@@ -8,8 +8,13 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    
+    <!-- IJIN DASAR FOREGROUND SERVICE -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    
+    <!-- ⚠️ FIX CRASH ANDROID 14+ (API 34/35): Wajib ditambahkan untuk DownloadService dataSync -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:allowBackup="true"
@@ -47,6 +52,7 @@
             android:theme="@style/Theme.MyMusicMuy.NoActionBar">
         </activity>
 
+        <!-- SERVICE PEMUTAR MUSIK -->
         <service 
             android:name=".MusicService"
             android:enabled="true"
@@ -54,6 +60,12 @@
             android:foregroundServiceType="mediaPlayback"
             tools:node="replace">
         </service>
+
+        <!-- ENGINE DOWNLOADER BARU LU (Sudah Rapih) -->
+        <service
+            android:name=".DownloadService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
 
         <receiver android:name=".MusicWidgetProvider"
             android:exported="true">

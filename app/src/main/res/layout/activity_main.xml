@@ -18,7 +18,7 @@
             android:layout_height="wrap_content"
             android:text="MyMusicMuy"
             android:textColor="#FFFFFF"
-            android:textSize="20sp" 
+            android:textSize="22sp" 
             android:textStyle="bold"
             android:letterSpacing="0.02"
             android:layout_alignParentStart="true"
@@ -66,17 +66,55 @@
             android:maxLines="1"
             android:ellipsize="end"
             android:fontFamily="sans-serif-monospace"/>
-
     </RelativeLayout>
+
+    <androidx.appcompat.widget.SearchView
+        android:id="@+id/searchView"
+        android:layout_width="match_parent"
+        android:layout_height="45dp"
+        android:layout_below="@id/headerLayout"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/bg_glass_card"
+        app:iconifiedByDefault="false"
+        app:queryHint="Cari lagu kesukaanmu..."
+        app:searchIcon="@android:drawable/ic_menu_search" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerViewMusic"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/headerLayout"
+        android:layout_below="@id/searchView"
         android:layout_above="@+id/miniPlayer"
         android:paddingVertical="4dp"
-        android:clipToPadding="false"/>
+        android:clipToPadding="false"
+        android:visibility="gone"/>
+
+    <LinearLayout
+        android:id="@+id/layoutEmptyState"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <ImageView
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:src="@android:drawable/ic_dark_gray_action_modes_share"
+            app:tint="#3300E5FF" />
+
+        <TextView
+            android:id="@+id/tvEmptyMessage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Belum ada folder yang dipilih.\nKetuk tombol di bawah untuk memuat musik."
+            android:textColor="#88FFFFFF"
+            android:textSize="14sp"
+            android:gravity="center"/>
+    </LinearLayout>
 
     <ProgressBar
         android:id="@+id/loadingAnim"

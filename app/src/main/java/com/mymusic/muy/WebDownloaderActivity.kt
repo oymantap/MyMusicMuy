@@ -34,26 +34,25 @@ class WebDownloaderActivity : AppCompatActivity() {
         val btnResetHome: ImageButton = findViewById(R.id.btnResetHome)
 
         viewPager.adapter = WebPagerAdapter(this, urls)
-        // Menjaga agar fragment tidak hancur saat pindah tab
         viewPager.offscreenPageLimit = tabs.size 
+
+        // FIX ANTI-KESWIPE: Menonaktifkan swipe gesture antar halaman tab pada ViewPager2
+        viewPager.isUserInputEnabled = false
 
         TabLayoutMediator(tabLayout, viewPager) { tab, position ->
             tab.text = tabs[position]
         }.attach()
 
-        // Fungsi Reset ke URL Awal
         btnResetHome.setOnClickListener {
             getCurrentFragment()?.resetToHome()
         }
 
-        // Handle navigasi tombol back HP
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 val currentFrag = getCurrentFragment()
                 if (currentFrag?.canGoBack() == true) {
                     currentFrag.goBack()
                 } else {
-                    // Jika web tidak bisa back, biarkan sistem menutup activity
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
                 }
@@ -61,7 +60,6 @@ class WebDownloaderActivity : AppCompatActivity() {
         })
     }
 
-    // Fungsi untuk mendapatkan fragment aktif di ViewPager2 secara akurat
     private fun getCurrentFragment(): WebFragment? {
         return supportFragmentManager.findFragmentByTag("f${viewPager.currentItem}") as? WebFragment
     }

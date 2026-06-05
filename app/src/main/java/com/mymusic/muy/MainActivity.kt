@@ -6,9 +6,11 @@ import android.content.pm.PackageManager
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.*
+import android.view.LayoutInflater
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SearchView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.documentfile.provider.DocumentFile
@@ -31,10 +33,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var miniCover: ImageView
     private lateinit var loadingAnim: ProgressBar
     
-    // UI STATS, HELP, & WEB DOWNLOADER
+    // UI STATS, HELP, WEB DOWNLOADER, & SEARCH/EMPTY STATE
     private lateinit var tvStats: TextView
     private lateinit var btnHelp: ImageButton
-    private lateinit var btnWebDownloader: ImageButton // Tombol Baru
+    private lateinit var btnWebDownloader: ImageButton 
+    private lateinit var searchView: SearchView
+    private lateinit var layoutEmptyState: LinearLayout
+    private lateinit var tvEmptyMessage: TextView
+
+    // Master list buat nyimpen data asli sebelum difilter search
+    private var masterSongList = mutableListOf<Triple<String, String, Uri>>()
 
     private lateinit var seekBar: SeekBar
     private lateinit var tvCurrentTime: TextView
@@ -87,6 +95,7 @@ class MainActivity : AppCompatActivity() {
 
         initViews()
         setupListeners()
+        setupSearch()
 
         val filter = IntentFilter().apply {
             addAction("UPDATE_GUI")
@@ -117,7 +126,10 @@ class MainActivity : AppCompatActivity() {
         tvTotalTime = findViewById(R.id.tvTotalTime)
         tvStats = findViewById(R.id.tvStats) 
         btnHelp = findViewById(R.id.btnHelp)   
-        btnWebDownloader = findViewById(R.id.btnWebDownloader) // Inisialisasi Tombol Baru
+        btnWebDownloader = findViewById(R.id.btnWebDownloader)
+        searchView = findViewById(R.id.searchView)
+        layoutEmptyState = findViewById(R.id.layoutEmptyState)
+        tvEmptyMessage = findViewById(R.id.tvEmptyMessage)
         
         rv = findViewById(R.id.recyclerViewMusic)
         rv.layoutManager = LinearLayoutManager(this)
@@ -127,14 +139,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupListeners() {
         btnPlayPause.setOnClickListener { musicService?.togglePlay() }
-        
         btnHelp.setOnClickListener { showHelpDialog() }
 
-        // Tombol Membuka Downloader Bertab
         btnWebDownloader.setOnClickListener {
             val intent = Intent(this, WebDownloaderActivity::class.java)
             startActivity(intent)
-            // Toast harus di dalam sini biar muncul pas diklik
             Toast.makeText(this, "Membuka Muy Downloader...", Toast.LENGTH_SHORT).show()
         }
             
@@ -148,7 +157,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnCloseMini.setOnClickListener {
-            // Cara stop service yang bener lewat intent action
             val stopIntent = Intent(this, MusicService::class.java).apply { 
                 action = MusicService.ACTION_STOP 
             }
@@ -165,9 +173,53 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnPickFolder).setOnClickListener {
             val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-            // Note: startActivityForResult sudah deprecated di API baru, 
-            // tapi kalau project lu masih pake cara lama, ini tetep jalan kok.
             startActivityForResult(i, 100)
+        }
+    }
+
+    // Logic pencarian real-time lagu
+    private fun setupSearch() {
+        searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                return false
+            }
+
+            override fun onQueryTextChange(newText: String?): Boolean {
+                filterSongs(newText.orEmpty())
+                return true
+            }
+        })
+    }
+
+    private fun filterSongs(query: String) {
+        if (query.isEmpty()) {
+            updateRecyclerView(masterSongList)
+        } else {
+            val filteredList = masterSongList.filter {
+                it.first.contains(query, ignoreCase = true) || it.second.contains(query, ignoreCase = true)
+            }.toMutableList()
+            updateRecyclerView(filteredList)
+            
+            if (filteredList.isEmpty()) {
+                layoutEmptyState.visibility = View.VISIBLE
+                tvEmptyMessage.text = "Lagu \"$query\" tidak ditemukan."
+            }
+        }
+    }
+
+    private fun updateRecyclerView(list: MutableList<Triple<String, String, Uri>>) {
+        if (list.isEmpty()) {
+            rv.visibility = View.GONE
+            layoutEmptyState.visibility = View.VISIBLE
+        } else {
+            rv.visibility = View.VISIBLE
+            layoutEmptyState.visibility = View.GONE
+            
+            rv.adapter = SongAdapter(this, list) { _, _, songUri ->
+                // Cari index asli dari master list biar lagunya ga salah putar pas diklik pasca-search
+                val originalIndex = masterSongList.indexOfFirst { it.third == songUri }
+                musicService?.playMusic(originalIndex)
+            }
         }
     }
 
@@ -202,6 +254,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadSongs(uri: Uri) {
         loadingAnim.visibility = View.VISIBLE
+        layoutEmptyState.visibility = View.GONE
+        
         lifecycleScope.launch(Dispatchers.IO) {
             val list = mutableListOf<Triple<String, String, Uri>>()
             var totalBytes = 0L
@@ -235,11 +289,12 @@ class MainActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 loadingAnim.visibility = View.GONE
                 tvStats.text = "M: ${list.size} | S: ${formatFileSize(totalBytes)}"
+                
+                masterSongList = list // Simpan ke master data
                 musicService?.setList(list)
-                rv.adapter = SongAdapter(this@MainActivity, list) { _, _, songUri ->
-                    val index = list.indexOfFirst { it.third == songUri }
-                    musicService?.playMusic(index)
-                }
+                
+                tvEmptyMessage.text = "Belum ada folder yang dipilih.\nKetuk tombol di bawah untuk memuat musik."
+                updateRecyclerView(masterSongList)
             }
         }
     }
@@ -251,30 +306,42 @@ class MainActivity : AppCompatActivity() {
         return String.format(Locale.US, "%.1f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
     }
 
+    // MENAMPILKAN DIALOG PANDUAN CUSTOM (UI JAUH LEBIH MEWAH)
     private fun showHelpDialog() {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_help, null)
+        val tvContent = dialogView.findViewById<TextView>(R.id.tvHelpContent)
+        val btnDismiss = dialogView.findViewById<Button>(R.id.btnDismissHelp)
+
         val message = """
-            🚀 Selamat datang di MyMusic Muy!
-            
             Aplikasi ini adalah media player offline. Kami tidak menyediakan musik secara langsung di dalam aplikasi.
             
-            Cara Mengisi Musik:
+            📌 Cara Mengisi Musik:
             1. Siapkan file musik di memori HP Anda.
             2. YouTube: Salin link video, cari situs 'YouTube Downloader', lalu pilih format .MP3 (bukan .MP4).
             3. Spotify: Salin link lagu, gunakan situs 'Spotify Downloader' untuk mengunduh.
             4. Metadata: Jika lagu tidak memiliki cover atau nama artis, gunakan aplikasi 'automaTag' di Play Store untuk memperbaikinya secara otomatis.
             
-            Statistik Header:
+            📊 Statistik Header:
             • M: Jumlah total lagu di folder.
             • S: Ukuran penyimpanan yang digunakan koleksi Anda.
+
+            ❗ Penting:
+            • jika tombol unduh macet, coba dengan melakukan klik dua kali dengan cepat di tombol, biasanya di tab SPDown
             
             Selamat mendengarkan! 🎧
         """.trimIndent()
 
-        android.app.AlertDialog.Builder(this, android.app.AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("Panduan Pengguna")
-            .setMessage(message)
-            .setPositiveButton("Mengerti") { dialog, _ -> dialog.dismiss() }
-            .show()
+        tvContent.text = message
+
+        val alertDialog = android.app.AlertDialog.Builder(this)
+            .setView(dialogView)
+            .create()
+
+        // Bikin background aslinya transparan biar background rounded card (bg_glass_card) kita kelihatan
+        alertDialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        btnDismiss.setOnClickListener { alertDialog.dismiss() }
+        alertDialog.show()
     }
 
     private fun startSeekBarUpdate() {
