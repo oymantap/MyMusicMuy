@@ -35,19 +35,40 @@ class SongAdapter(
 
         loadCover(uri, h.img)
 
-        h.itemView.alpha = 0f
-        h.itemView.translationY = 40f
-        h.itemView.animate()
-            .alpha(1f)
-            .translationY(0f)
-            .setDuration(350)
-            .setInterpolator(DecelerateInterpolator())
-            .start()
+        // 🌟 AKSI TEKAN LAMA UNTUK MASUKKAN KE ANTREAN MANTAP (MAKSIMAL 5)
+        h.itemView.setOnLongClickListener {
+            // Kita coba panggil Service secara dinamis lewat context activity
+            val serviceIntent = android.content.Intent(ctx, MusicService::class.java)
+            ctx.bindService(serviceIntent, object : android.content.ServiceConnection {
+                override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {
+                    val binder = service as? MusicService.MusicBinder
+                    val musicService = binder?.getService()
+                    
+                    musicService?.let { ws ->
+                        if (ws.isQueueModeActive) {
+                            Toast.makeText(ctx, "Matikan mode antrean di player dulu sebelum menambah lagu!", Toast.LENGTH_SHORT).show()
+                            return@let
+                        }
 
-        h.itemView.setOnClickListener {
-            onClick(title, artist, uri)
+                        // Cek apakah lagu sudah terdaftar di antrean custom
+                        val isAlreadyInQueue = ws.customQueue.any { it.third == uri }
+                        
+                        if (isAlreadyInQueue) {
+                            Toast.makeText(ctx, "Lagu ini sudah ada di antrean!", Toast.LENGTH_SHORT).show()
+                        } else if (ws.customQueue.size >= 5) {
+                            Toast.makeText(ctx, "Antrean penuh! Maksimal hanya 5 lagu.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            ws.customQueue.add(Triple(title, artist, uri))
+                            Toast.makeText(ctx, "Berhasil ditambah ke Antrean (${ws.customQueue.size}/5) 🎧", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    ctx.unbindService(this) // Langsung lepas setelah selesai urusan
+                }
+                override fun onServiceDisconnected(name: android.content.ComponentName?) {}
+            }, Context.BIND_AUTO_CREATE)
+            
+            true // Mengembalikan true agar event klik normal tidak ikut kepicu
         }
-    }
 
     private fun loadCover(uri: Uri, img: ImageView) {
         try {

@@ -38,6 +38,12 @@ class MusicService : Service() {
     var currentIndex = -1
     private var currentAlbumArt: Bitmap? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+    
+        // 🌟 VARIABEL UNTUK ANTREAN MANTAP CUSTOM
+    var customQueue = mutableListOf<Triple<String, String, Uri>>()
+    var isQueueModeActive = false
+    var originalSongListBackup = mutableListOf<Triple<String, String, Uri>>()
+
 
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
@@ -167,7 +173,17 @@ class MusicService : Service() {
         }.start()
     }
 
-    fun playNext() { if (songList.isNotEmpty()) playMusic((currentIndex + 1) % songList.size) }
+    fun playNext() { 
+        if (songList.isNotEmpty()) {
+            if (isQueueModeActive && songList.size == 1) {
+                // Skenario Poin 1: Jika mode antrean aktif dan cuma berisi 1 lagu (Repeat One)
+                playMusic(0)
+            } else {
+                // Skenario Poin 2: Normal / Kelompok Antrean Mantap (A -> B -> C -> A)
+                playMusic((currentIndex + 1) % songList.size) 
+            }
+        } 
+    }
     
     fun playPrevious() {
         if (songList.isNotEmpty()) {

@@ -173,6 +173,29 @@
         android:paddingHorizontal="24dp">
 
         <ImageButton
+            android:id="@+id/btnRepeatCustom"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_centerVertical="true"
+            android:layout_alignParentStart="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_repeat" 
+            android:padding="8dp"
+            app:tint="#80FFFFFF" />
+
+        <ImageButton
+            android:id="@+id/fspPrev"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_centerVertical="true"
+            android:layout_toStartOf="@+id/fspPlayPauseFrame"
+            android:layout_marginEnd="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_prev"
+            android:scaleType="fitCenter"
+            app:tint="#FFFFFF" />
+      
+        <ImageButton
             android:id="@+id/fspPrev"
             android:layout_width="48dp"
             android:layout_height="48dp"
