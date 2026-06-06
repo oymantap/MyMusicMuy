@@ -168,45 +168,42 @@ class FullScreenPlayerActivity : AppCompatActivity() {
             overridePendingTransition(R.anim.no_anim, R.anim.slide_down)
         }
 
-        // 🌟 LOGIKA TOMBOL SAKELAR ANTREAN MANTAP
+        // 🌟 LOGIKA TOMBOL SAKELAR ANTREAN MANTAP (ANTI BOCOR)
         btnRepeatCustom.setOnClickListener {
             val service = musicService ?: return@setOnClickListener
             
             if (!service.isQueueModeActive) {
                 // AKTIFKAN MODE ANTREAN MANTAP
                 if (service.customQueue.isEmpty()) {
-                    // JIKA ANTREAN CUSTOM KOSONG, OTOMATIS JADIKAN REPEAT 1 LAGU SAJA (Skenario Poin 1)
                     if (service.currentIndex == -1 || service.songList.isEmpty()) return@setOnClickListener
                     
                     val currentSong = service.songList[service.currentIndex]
                     
-                    service.originalSongListBackup.clear()
-                    service.originalSongListBackup.addAll(service.songList)
+                    // Kloning dengan .toMutableList() agar tidak satu referensi memori!
+                    service.originalSongListBackup = service.songList.toMutableList()
                     
                     service.songList.clear()
                     service.songList.add(currentSong)
                     service.currentIndex = 0
                     service.isQueueModeActive = true
                     
-                    btnRepeatCustom.setColorFilter(Color.parseColor("#00E5FF")) // Warna Cyan (Aktif)
+                    btnRepeatCustom.setColorFilter(Color.parseColor("#00E5FF"))
                     Toast.makeText(this, "Repeat Satu Lagu Aktif! 🔁", Toast.LENGTH_SHORT).show()
                 } else {
-                    // JIKA ADA ISI ANTREAN NYA (Skenario Poin 2: Maksimal 5 Lagu)
                     val currentPlayingUri = if (service.currentIndex != -1) service.songList[service.currentIndex].third else null
                     
-                    service.originalSongListBackup.clear()
-                    service.originalSongListBackup.addAll(service.songList)
+                    // Kloning dengan .toMutableList() biar aman dari manipulasi clear()
+                    service.originalSongListBackup = service.songList.toMutableList()
                     
-                    // Ganti daftar putar utama service dengan 5 lagu pilihan tadi
                     service.songList.clear()
-                    service.songList.addAll(service.customQueue)
+                    // Masukkan kloningan dari custom queue agar aman
+                    service.songList.addAll(service.customQueue.toMutableList())
                     
-                    // Sesuaikan index putar agar lagu yang lagi jalan tidak mati tiba-tiba
                     val matchIndex = service.songList.indexOfFirst { it.third == currentPlayingUri }
                     service.currentIndex = if (matchIndex != -1) matchIndex else 0
                     service.isQueueModeActive = true
                     
-                    btnRepeatCustom.setColorFilter(Color.parseColor("#00E5FF")) // Warna Cyan
+                    btnRepeatCustom.setColorFilter(Color.parseColor("#00E5FF"))
                     Toast.makeText(this, "Antrean Mantap Aktif (${service.songList.size} Lagu) 🎶", Toast.LENGTH_SHORT).show()
                 }
             } else {
@@ -215,20 +212,17 @@ class FullScreenPlayerActivity : AppCompatActivity() {
                 
                 val currentPlayingUri = service.songList[service.currentIndex].third
                 
-                // Kembalikan seluruh isi folder awal
                 service.songList.clear()
                 service.songList.addAll(service.originalSongListBackup)
                 
-                // Cari index lagu tersebut di dalam daftar folder utama agar posisi putar sinkron
                 val restoreIndex = service.songList.indexOfFirst { it.third == currentPlayingUri }
                 service.currentIndex = if (restoreIndex != -1) restoreIndex else 0
                 
                 service.isQueueModeActive = false
-                // Kosongkan list antrean custom biar user bisa bikin daftar antrean baru dari awal
                 service.customQueue.clear() 
                 
-                btnRepeatCustom.setColorFilter(Color.parseColor("#80FFFFFF")) // Balik Abu-abu (Mati)
-                Toast.makeText(this, "Antrean Normal Kembali (Koleksi Folder)", Toast.LENGTH_SHORT).show()
+                btnRepeatCustom.setColorFilter(Color.parseColor("#80FFFFFF"))
+                Toast.makeText(this, "Antrean Normal Kembali", Toast.LENGTH_SHORT).show()
             }
             updateUI()
         }
