@@ -194,18 +194,6 @@
             android:src="@drawable/ic_prev"
             android:scaleType="fitCenter"
             app:tint="#FFFFFF" />
-      
-        <ImageButton
-            android:id="@+id/fspPrev"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_centerVertical="true"
-            android:layout_toStartOf="@+id/fspPlayPauseFrame"
-            android:layout_marginEnd="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_prev"
-            android:scaleType="fitCenter"
-            app:tint="#FFFFFF" />
 
         <FrameLayout
             android:id="@+id/fspPlayPauseFrame"
