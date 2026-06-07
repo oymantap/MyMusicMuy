@@ -78,7 +78,9 @@
         android:background="@drawable/bg_glass_card"
         app:iconifiedByDefault="false"
         app:queryHint="Cari lagu kesukaanmu..."
-        app:searchIcon="@android:drawable/ic_menu_search" />
+        app:searchIcon="@android:drawable/ic_menu_search"
+        app:queryBackground="@android:color/transparent"
+        app:theme="@style/Theme.AppCompat.DayNight.DarkActionBar" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerViewMusic"

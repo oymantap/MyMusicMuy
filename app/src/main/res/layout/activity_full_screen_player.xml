@@ -76,21 +76,20 @@
                     android:textStyle="bold"
                     android:background="@android:color/transparent"
                     android:clickable="true"
-                    android:focusable="true"/>
-
-        <ImageButton
-            android:id="@+id/btnRepeatCustom"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:layout_alignParentEnd="true"
-            android:layout_centerVertical="true"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_repeat" 
-            android:padding="10dp"
-            app:tint="#80FFFFFF" />
-              
+                    android:focusable="true"/>        
             </LinearLayout>
         </androidx.cardview.widget.CardView>
+
+                <ImageButton
+                    android:id="@+id/btnRepeatCustom"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_repeat" 
+                    android:padding="10dp"
+                    app:tint="#80FFFFFF" />
     </RelativeLayout>
 
     <androidx.viewpager2.widget.ViewPager2

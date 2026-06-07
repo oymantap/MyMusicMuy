@@ -321,6 +321,10 @@ class MainActivity : AppCompatActivity() {
             3. Spotify: Salin link lagu, gunakan situs 'Spotify Downloader' untuk mengunduh.
             4. Metadata: Jika lagu tidak memiliki cover atau nama artis, gunakan aplikasi 'automaTag' di Play Store untuk memperbaikinya secara otomatis.
             
+            ⭐ Fitur Rahasia (Antrean & Repeat Custom):
+            • Mode Repeat 1 Lagu: Langsung klik tombol "Repeat" (icon panah melingkar ads icon msuic) di kanan atas player. Lagu yang lagi jalan bakal diputar terus-terusan.
+            • Mode Antrean Mantap (Maks 5 Lagu): Di halaman utama, TEKAN LAMA (Long Click) pada lagu-lagu yang lu mau (maksimal 5 lagu). Setelah itu, buka player dan klik tombol "Repeat" di kanan atas. Player cuma bakal muterin lagu-lagu pilihan itu aja! Klik sekali lagi buat bubarin antrean dan balik normal.
+            
             📊 Statistik Header:
             • M: Jumlah total lagu di folder.
             • S: Ukuran penyimpanan yang digunakan koleksi Anda.
