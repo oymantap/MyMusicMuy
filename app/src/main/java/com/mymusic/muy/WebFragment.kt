@@ -68,7 +68,6 @@ class WebFragment : Fragment() {
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         }
         
-        // Progress Bar loading web dibikin setinggi 4dp dengan warna Cyan tegas menyala
         progressBar = LinearProgressIndicator(context).apply {
             layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 12)
             trackColor = android.graphics.Color.TRANSPARENT
@@ -166,16 +165,17 @@ class WebFragment : Fragment() {
             if (cleanName.endsWith(".bin", true) || !cleanName.contains(".")) {
                 val base = if (cleanName.contains(".")) cleanName.substringBeforeLast(".") else cleanName
                 cleanName = "$base.$extFromMime"
+            }
 
             // 🌟 LOGIC PEMOTONG NAMA FILE (MAKSIMAL 20 HURUF + EKSTENSI)
-val extension = if (cleanName.contains(".")) cleanName.substringAfterLast(".") else "mp3"
-val nameWithoutExt = if (cleanName.contains(".")) cleanName.substringBeforeLast(".") else cleanName
+            val extension = if (cleanName.contains(".")) cleanName.substringAfterLast(".") else "mp3"
+            val nameWithoutExt = if (cleanName.contains(".")) cleanName.substringBeforeLast(".") else cleanName
 
-val shortName = if (nameWithoutExt.length > 20) {
-    nameWithoutExt.take(20) + "..."
-} else {
-    nameWithoutExt
-}
+            val shortName = if (nameWithoutExt.length > 20) {
+                nameWithoutExt.take(20) + "..."
+            } else {
+                nameWithoutExt
+            }
 
             val finalFileName = "Muy_${shortName}.$extension"
             val cookies = android.webkit.CookieManager.getInstance().getCookie(url)
@@ -190,7 +190,6 @@ val shortName = if (nameWithoutExt.length > 20) {
                 return@setDownloadListener
             }
 
-            // OPER TUGAS KE FOREGROUND SERVICE AGAR ANTI-CLOSE
             val serviceIntent = Intent(appContext, DownloadService::class.java).apply {
                 putExtra("URL", url)
                 putExtra("MIME", mimetype)
@@ -209,7 +208,7 @@ val shortName = if (nameWithoutExt.length > 20) {
             }
             Toast.makeText(appContext, "Mengunduh di latar belakang...", Toast.LENGTH_SHORT).show()
         }
-    }
+    } // Tanda kurung penutup aman di sini!
 
     private fun saveBlobDirectly(data: ByteArray, mimeType: String, fileName: String) {
         val ctx = context?.applicationContext ?: return
