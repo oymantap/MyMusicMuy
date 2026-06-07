@@ -328,9 +328,6 @@ class MainActivity : AppCompatActivity() {
             📊 Statistik Header:
             • M: Jumlah total lagu di folder.
             • S: Ukuran penyimpanan yang digunakan koleksi Anda.
-
-            ❗ Penting:
-            • jika tombol unduh macet, coba dengan melakukan klik dua kali dengan cepat di tombol, biasanya di tab SPDown
             
             Selamat mendengarkan! 🎧
         """.trimIndent()

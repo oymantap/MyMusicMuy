@@ -164,15 +164,21 @@ class DownloadService : Service() {
                 } else {
                     withContext(Dispatchers.Main) {
                         Toast.makeText(applicationContext, "Selesai diunduh!", Toast.LENGTH_SHORT).show()
+                        
+                        notificationManager.cancel(notifId)
+                        
                         val finishNotif = NotificationCompat.Builder(this@DownloadService, CHANNEL_ID)
                             .setSmallIcon(android.R.drawable.stat_sys_download_done)
-                            .setContentTitle("Download Selesai")
+                            .setContentTitle("Download Selesai! 🎉")
                             .setContentText(shortName)
+                            .setOngoing(false)
                             .setAutoCancel(true)
                             .build()
-                        notificationManager.notify(notifId + 1, finishNotif)
+                        
+                        notificationManager.notify(notifId, finishNotif)
                     }
                 }
+
             } catch (e: Exception) {
                 targetDoc?.delete()
                 withContext(Dispatchers.Main) {
@@ -192,7 +198,13 @@ class DownloadService : Service() {
 
     private fun stopSelfIfNoJobs() {
         if (activeJobs.isEmpty()) {
-            stopForeground(STOP_FOREGROUND_DETACH)
+            // 🌟 STOP_FOREGROUND_REMOVE bakal otomatis ngehapus semua notifikasi yang nempel di foreground
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
             stopSelf()
         }
     }

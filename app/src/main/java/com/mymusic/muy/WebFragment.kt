@@ -166,9 +166,18 @@ class WebFragment : Fragment() {
             if (cleanName.endsWith(".bin", true) || !cleanName.contains(".")) {
                 val base = if (cleanName.contains(".")) cleanName.substringBeforeLast(".") else cleanName
                 cleanName = "$base.$extFromMime"
-            }
 
-            val finalFileName = "Muy_$cleanName"
+            // 🌟 LOGIC PEMOTONG NAMA FILE (MAKSIMAL 20 HURUF + EKSTENSI)
+val extension = if (cleanName.contains(".")) cleanName.substringAfterLast(".") else "mp3"
+val nameWithoutExt = if (cleanName.contains(".")) cleanName.substringBeforeLast(".") else cleanName
+
+val shortName = if (nameWithoutExt.length > 20) {
+    nameWithoutExt.take(20) + "..."
+} else {
+    nameWithoutExt
+}
+
+            val finalFileName = "Muy_${shortName}.$extension"
             val cookies = android.webkit.CookieManager.getInstance().getCookie(url)
             val currentRef = webView.url ?: url
 
